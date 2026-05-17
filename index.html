@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>Kinshout</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="pages.css" />
+    <link rel="stylesheet" href="home.css" />
+  </head>
+  <body>
+    <div class="app" id="app">
+      <header class="header" id="appHeader">
+        <button type="button" class="header-back" id="headerBack" aria-label="Retour">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6" stroke-linecap="round"/></svg>
+          Retour
+        </button>
+        <a href="#" class="logo" id="logoHome" aria-label="Kinshout">
+          <span class="logo-icon" aria-hidden="true">
+            <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="20" cy="20" r="20" fill="#FF5500"/>
+              <path d="M14 26V14l10 5-10 5v2l6-3v2l-6 3z" fill="white"/>
+            </svg>
+          </span>
+          <span class="logo-text"><span class="kin">Kin</span><span class="shout">shout</span></span>
+        </a>
+        <button class="menu-btn" id="menuBtn" type="button" aria-label="Menu"><span></span><span></span><span></span></button>
+      </header>
+
+      <nav class="drawer" id="drawer" hidden>
+        <button class="drawer-close" id="drawerClose" type="button">×</button>
+        <button type="button" class="drawer-link" data-go="home">Accueil</button>
+        <button type="button" class="drawer-link" data-go="search">Rechercher</button>
+        <button type="button" class="drawer-link" data-go="publish-1">Publier une annonce</button>
+        <button type="button" class="drawer-link" data-go="discussions">Discussions</button>
+        <button type="button" class="drawer-link" data-go="account">Mon compte</button>
+      </nav>
+      <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
+
+      <main class="main" id="main">
+        <!-- 1. Accueil -->
+        <div id="view-home" class="page view-active home-page">
+          <div class="home-content">
+          <section class="hero">
+            <h1 class="hero-title">Le cri de Kin<span class="dot">.</span></h1>
+            <p class="hero-taglines">
+              <span>Publiez naturellement.</span>
+              <span>Trouvez intelligemment.</span>
+              <span>Discutez librement.</span>
+            </p>
+          </section>
+          <section class="search-section home-search">
+            <form class="search-bar" id="homeSearchForm">
+              <span class="search-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3" stroke-linecap="round"/></svg></span>
+              <input type="search" class="search-input" id="homeSearchInput" placeholder="Que cherchez-vous à Kin aujourd'hui ?" />
+              <button type="submit" class="search-submit" aria-label="Rechercher"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3" stroke-linecap="round"/></svg></button>
+            </form>
+          </section>
+          <section class="popular">
+            <h2 class="section-title">Recherches populaires</h2>
+            <div class="pills" id="homePills"></div>
+          </section>
+          <section class="cta-cards home-cta">
+            <button type="button" class="cta-card cta-post" data-go="publish-1">
+              <span class="cta-icon cta-icon-orange" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg></span>
+              <span class="cta-body"><strong class="cta-title">Déposer une annonce</strong><span class="cta-sub">Publiez votre besoin ou ce que vous vendez</span></span>
+              <span class="cta-chevron">›</span>
+            </button>
+            <button type="button" class="cta-card cta-discuss" data-go="discussions">
+              <span class="cta-icon cta-icon-purple" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M5 5h14a2 2 0 012 2v8a2 2 0 01-2 2H10l-4 4V7a2 2 0 012-2z"/><circle cx="9" cy="12" r="1.1" fill="#7B5CB8"/><circle cx="12" cy="12" r="1.1" fill="#7B5CB8"/><circle cx="15" cy="12" r="1.1" fill="#7B5CB8"/></svg></span>
+              <span class="cta-body"><strong class="cta-title">Joindre les discussions</strong><span class="cta-sub">Posez vos questions, partagez, obtenez des réponses</span></span>
+              <span class="cta-chevron cta-chevron-purple">›</span>
+            </button>
+          </section>
+          </div>
+          <div class="skyline" aria-hidden="true">
+            <img class="skyline-img" src="assets/skyline-kinshasa.png" alt="" width="473" height="240" loading="eager" />
+          </div>
+        </div>
+
+        <!-- 2. Rechercher (catégories) -->
+        <div id="view-search" class="page" hidden>
+          <h1 class="page-title">Rechercher</h1>
+          <form class="search-bar search-bar-compact" id="catSearchForm">
+            <span class="search-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg></span>
+            <input type="search" class="search-input" id="catSearchInput" placeholder="Que cherchez-vous à Kin aujourd'hui ?" />
+            <button type="submit" class="search-submit"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg></button>
+          </form>
+          <ul class="category-list" id="categoryList"></ul>
+        </div>
+
+        <!-- 3. Résultats -->
+        <div id="view-results" class="page" hidden>
+          <div class="results-search-row">
+            <form class="search-bar" id="resultsSearchForm" style="flex:1;margin:0">
+              <input type="search" class="search-input" id="resultsSearchInput" />
+              <button type="submit" class="search-submit"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg></button>
+            </form>
+            <button type="button" class="filter-btn-icon" aria-label="Filtres">☰</button>
+          </div>
+          <div class="tabs" id="resultsTabs">
+            <button type="button" class="tab active" data-tab="all">Tout</button>
+            <button type="button" class="tab" data-tab="annonces">Annonces</button>
+            <button type="button" class="tab" data-tab="discussions">Discussions</button>
+          </div>
+          <div id="resultsList" class="listing-cards"></div>
+          <p class="empty-results" id="emptyResults" hidden>Aucun résultat pour cette recherche.</p>
+        </div>
+
+        <!-- 4. Détail annonce -->
+        <div id="view-ad-detail" class="page ad-detail-page" hidden>
+          <div class="ad-gallery" id="adGallery">
+            <img id="adImage" src="" alt="" />
+            <div class="ad-gallery-top">
+              <button type="button" class="icon-btn-round" id="adBackBtn">←</button>
+              <div class="ad-gallery-actions">
+                <button type="button" class="icon-btn-round" id="adFavBtn">♡</button>
+                <button type="button" class="icon-btn-round">↗</button>
+              </div>
+              <span class="ad-counter" id="adCounter">1/8</span>
+            </div>
+          </div>
+          <div class="ad-content">
+            <h1 class="ad-title" id="adTitle"></h1>
+            <p class="ad-price" id="adPrice"></p>
+            <p class="ad-location" id="adLocation"></p>
+            <div class="tag-row" id="adTags"></div>
+            <p class="ad-desc" id="adDesc"></p>
+          </div>
+          <div class="ad-footer-bar" id="adFooterBar">
+            <button type="button" class="btn-whatsapp" id="adWhatsApp">Contacter sur WhatsApp</button>
+            <button type="button" class="btn-call" id="adCall">Appeler</button>
+          </div>
+        </div>
+
+        <!-- 5-7. Déposer (3 étapes) -->
+        <div id="view-publish-1" class="page" hidden>
+          <div class="publish-steps"><div class="publish-step-dot active"></div><div class="publish-step-dot"></div><div class="publish-step-dot"></div></div>
+          <h1 class="page-title">Déposer une annonce</h1>
+          <p class="publish-prompt">Décrivez simplement votre besoin ou ce que vous vendez. Notre IA structure l'annonce pour vous.</p>
+          <textarea class="publish-textarea" id="publishText" placeholder="Ex : Je cherche un appartement 2 chambres à Gombe, budget 800 $ par mois…"></textarea>
+          <div class="publish-chips">
+            <button type="button" class="chip-action">📷 Photos</button>
+            <button type="button" class="chip-action">📍 Quartier</button>
+            <button type="button" class="chip-action">💰 Prix</button>
+          </div>
+          <button type="button" class="btn-primary-full" id="publishNext1">Continuer</button>
+        </div>
+
+        <div id="view-publish-2" class="page" hidden>
+          <div class="publish-steps"><div class="publish-step-dot done"></div><div class="publish-step-dot active"></div><div class="publish-step-dot"></div></div>
+          <h1 class="page-title">Détails</h1>
+          <div class="ai-hint" id="publishAiHint">⏳ Analyse IA en cours…</div>
+          <div class="form-field"><label class="form-label">Catégorie</label><select class="form-select" id="pubCategory"></select></div>
+          <div class="form-field"><label class="form-label">Quartier</label><input class="form-input" id="pubQuartier" placeholder="Gombe" /></div>
+          <div class="form-field"><label class="form-label">Prix</label><input class="form-input" id="pubPrix" placeholder="800 $" /></div>
+          <div class="form-field"><label class="form-label">Type d'annonce</label><select class="form-select" id="pubType"><option value="demande">Recherche</option><option value="offre">Offre</option></select></div>
+          <button type="button" class="btn-primary-full" id="publishNext2">Aperçu</button>
+          <button type="button" class="btn-secondary-full" id="publishBack2">Retour</button>
+        </div>
+
+        <div id="view-publish-3" class="page" hidden>
+          <div class="publish-steps"><div class="publish-step-dot done"></div><div class="publish-step-dot done"></div><div class="publish-step-dot active"></div></div>
+          <h1 class="page-title">Aperçu</h1>
+          <div class="preview-card" id="publishPreview"></div>
+          <button type="button" class="btn-primary-full" id="publishSubmit">Publier maintenant</button>
+          <button type="button" class="btn-secondary-full" id="publishBack3">Modifier</button>
+        </div>
+
+        <!-- 8. Discussions -->
+        <div id="view-discussions" class="page" hidden>
+          <h1 class="page-title">Discussions</h1>
+          <form class="search-bar discuss-search" id="discussSearchForm">
+            <span class="search-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg></span>
+            <input type="search" class="search-input" id="discussSearchInput" placeholder="Rechercher une discussion…" />
+          </form>
+          <div class="tabs">
+            <button type="button" class="tab active" data-discuss-tab="popular">Populaires</button>
+            <button type="button" class="tab" data-discuss-tab="recent">Récentes</button>
+          </div>
+          <div id="discussionsList"></div>
+          <button type="button" class="fab-discuss">Créer une discussion</button>
+        </div>
+
+        <!-- 9. Détail discussion -->
+        <div id="view-discussion-detail" class="page" hidden>
+          <h1 class="page-title" id="discussDetailTitle"></h1>
+          <article class="thread-post" id="discussMainPost"></article>
+          <div id="discussReplies"></div>
+          <form class="reply-bar" id="replyForm">
+            <input type="text" class="reply-input" placeholder="Écrire une réponse…" />
+            <button type="submit" class="reply-send" aria-label="Envoyer">➤</button>
+          </form>
+        </div>
+
+        <!-- 10. Compte -->
+        <div id="view-account" class="page" hidden>
+          <div class="profile-header">
+            <div class="profile-avatar" id="profileAvatar">JM</div>
+            <p class="profile-name" id="profileName">Jonathan M.</p>
+            <p class="profile-since" id="profileSince">Membre depuis janv. 2025</p>
+          </div>
+          <ul class="menu-list" id="accountMenu">
+            <li><button type="button" class="menu-item"><span class="menu-item-icon">📋</span> Mes annonces<span class="menu-item-chevron">›</span></button></li>
+            <li><button type="button" class="menu-item"><span class="menu-item-icon">💬</span> Mes discussions<span class="menu-item-chevron">›</span></button></li>
+            <li><button type="button" class="menu-item"><span class="menu-item-icon">✉️</span> Messages<span class="menu-item-chevron">›</span></button></li>
+            <li><button type="button" class="menu-item"><span class="menu-item-icon">♡</span> Annonces sauvegardées<span class="menu-item-chevron">›</span></button></li>
+            <li><button type="button" class="menu-item"><span class="menu-item-icon">⚙️</span> Paramètres<span class="menu-item-chevron">›</span></button></li>
+            <li><button type="button" class="menu-item"><span class="menu-item-icon">ℹ️</span> À propos<span class="menu-item-chevron">›</span></button></li>
+            <li><button type="button" class="menu-item"><span class="menu-item-icon">🆘</span> Aide & support<span class="menu-item-chevron">›</span></button></li>
+          </ul>
+        </div>
+      </main>
+
+      <nav class="bottom-nav bottom-nav--5" aria-label="Navigation">
+        <a href="#" class="nav-item active" data-tab="home"><svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L3 11h2v9h6v-6h2v6h6v-9h2L12 3z"/></svg><span>Accueil</span></a>
+        <a href="#" class="nav-item" data-tab="search"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg><span>Rechercher</span></a>
+        <a href="#" class="nav-item nav-publish" data-tab="publish"><span class="nav-icon-wrap"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg></span><span>Publier</span></a>
+        <a href="#" class="nav-item" data-tab="discussions"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-5 4V7a2 2 0 012-2z"/></svg><span>Discussions</span></a>
+        <a href="#" class="nav-item" data-tab="account"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-6 7-6s7 2 7 6"/></svg><span>Compte</span></a>
+      </nav>
+    </div>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

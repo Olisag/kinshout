@@ -1,0 +1,176 @@
+/* Accueil — matches Kinshout mockup */
+
+.main:has(.home-page.view-active) {
+  padding-bottom: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.home-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: calc(100dvh - 56px - var(--nav-height) - var(--safe-bottom));
+  margin: 0 -1.25rem;
+  width: calc(100% + 2.5rem);
+}
+
+.home-content {
+  flex: 1;
+  padding: 0 1.25rem;
+  padding-bottom: 0.5rem;
+}
+
+.home-page .hero {
+  margin-bottom: 1.35rem;
+  padding-top: 0.15rem;
+}
+
+.home-page .hero-title {
+  font-size: 2.05rem;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+  margin-bottom: 0.5rem;
+}
+
+.home-page .hero-taglines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.home-page .hero-taglines span {
+  font-size: 0.92rem;
+  color: #6b7280;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.home-search {
+  margin-bottom: 1.65rem;
+}
+
+.home-search .search-bar {
+  box-shadow: 0 4px 20px rgba(26, 43, 74, 0.1);
+  border: 1px solid rgba(26, 43, 74, 0.05);
+  padding: 0.4rem 0.4rem 0.4rem 1rem;
+}
+
+.home-search .search-submit {
+  border-radius: 11px;
+  width: 46px;
+  height: 46px;
+}
+
+.home-page .popular {
+  margin-bottom: 1.35rem;
+}
+
+.home-page .section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 0.75rem;
+}
+
+.home-page .pill {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  font-size: 0.76rem;
+  padding: 0.65rem 0.8rem;
+  align-items: center;
+}
+
+.home-page .pill-icon svg {
+  display: block;
+}
+
+.home-cta {
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
+.home-cta .cta-card {
+  padding: 1.05rem 1rem;
+  border-radius: 14px;
+}
+
+.home-cta .cta-post {
+  background: #fff5ef;
+  border: 1px solid #ffe8d9;
+}
+
+.home-cta .cta-discuss {
+  background: #f6f0ff;
+  border: 1px solid #ebe3f8;
+}
+
+.home-cta .cta-title {
+  font-size: 0.92rem;
+}
+
+.home-cta .cta-sub {
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.home-cta .cta-chevron {
+  font-size: 1.5rem;
+  font-weight: 300;
+  color: #9ca3af;
+}
+
+.home-cta .cta-chevron-purple {
+  color: #9ca3af;
+}
+
+.home-cta .cta-icon {
+  width: 46px;
+  height: 46px;
+}
+
+/* Kinshasa skyline from mockup */
+.home-page .skyline {
+  margin: 0;
+  width: 100%;
+  flex-shrink: 0;
+  line-height: 0;
+  overflow: hidden;
+}
+
+.skyline-img {
+  width: 100%;
+  height: auto;
+  min-height: 120px;
+  max-height: 165px;
+  object-fit: cover;
+  object-position: center bottom;
+  display: block;
+}
+
+/* Logo megaphone */
+.logo-icon svg {
+  filter: drop-shadow(0 1px 2px rgba(255, 85, 0, 0.25));
+}
+
+.logo-text .kin {
+  color: #1a2b4a;
+}
+
+.logo-text .shout {
+  color: #ff5500;
+}
+
+@media (min-width: 480px) {
+  .home-page {
+    margin: 0;
+    width: 100%;
+    border-radius: 0;
+  }
+
+  .skyline-img {
+    max-height: 180px;
+  }
+}
