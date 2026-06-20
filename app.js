@@ -55,6 +55,9 @@ let publishDraft = {
 };
 let currentListingId = null;
 let currentDiscussionId = null;
+let currentDiscussionDetail = null;
+let discussionThreadPage = 1;
+const DISCUSSION_THREAD_PAGE_SIZE = 20;
 let currentAdPhotoIndex = 0;
 let authUser = null;
 let facebookSdkReady = false;
@@ -718,9 +721,15 @@ function renderDiscussions() {
 }
 
 function openDiscussion(id) {
-  const d = findDiscussion(id);
-  if (!d) return;
   currentDiscussionId = id;
+  discussionThreadPage = 1;
+  loadDiscussionDetail(true).then(() => go("discussion-detail"));
+}
+
+function renderDiscussionDetail() {
+  const d = currentDiscussionDetail;
+  if (!d) return;
+
   document.getElementById("discussDetailTitle").textContent = d.title;
   document.getElementById("discussMainPost").innerHTML = `
     <div class="thread-author">
@@ -730,7 +739,9 @@ function openDiscussion(id) {
     <p class="thread-body">${escapeHtml(d.body)}</p>
     <div class="thread-actions"><span>👍 J'aime</span><span>↩ Répondre</span><span>↗ Partager</span></div>
   `;
-  document.getElementById("discussReplies").innerHTML = d.thread
+
+  const replies = d.thread?.items || [];
+  document.getElementById("discussReplies").innerHTML = replies
     .map(
       (r) => `
     <div class="thread-reply">
@@ -742,7 +753,75 @@ function openDiscussion(id) {
     </div>`
     )
     .join("");
-  go("discussion-detail");
+
+  const loadMore = document.getElementById("discussThreadLoadMore");
+  if (loadMore) loadMore.hidden = !(d.thread?.hasMore);
+}
+
+async function loadDiscussionDetail(reset = true) {
+  if (!currentDiscussionId) return;
+
+  const loadMore = document.getElementById("discussThreadLoadMore");
+  if (reset) {
+    discussionThreadPage = 1;
+    currentDiscussionDetail = null;
+    document.getElementById("discussReplies").innerHTML =
+      '<p class="profile-whatsapp-status">Chargement…</p>';
+    if (loadMore) loadMore.hidden = true;
+  } else if (loadMore) {
+    loadMore.disabled = true;
+    loadMore.textContent = "Chargement…";
+  }
+
+  try {
+    const detail = await api.discussions.get(currentDiscussionId, {
+      page: discussionThreadPage,
+      pageSize: DISCUSSION_THREAD_PAGE_SIZE,
+    });
+
+    if (reset || !currentDiscussionDetail) {
+      currentDiscussionDetail = detail;
+    } else {
+      currentDiscussionDetail = {
+        ...detail,
+        thread: {
+          ...detail.thread,
+          items: [...(currentDiscussionDetail.thread?.items || []), ...(detail.thread?.items || [])],
+        },
+      };
+    }
+
+    renderDiscussionDetail();
+  } catch {
+    const fallback = findDiscussion(currentDiscussionId);
+    if (fallback) {
+      currentDiscussionDetail = {
+        ...fallback,
+        thread: {
+          items: (fallback.thread || []).map((r) => ({
+            id: r.id,
+            author: r.author,
+            avatar: r.avatar,
+            time: r.time,
+            text: r.text,
+          })),
+          hasMore: false,
+        },
+      };
+      renderDiscussionDetail();
+    }
+  } finally {
+    if (loadMore) {
+      loadMore.disabled = false;
+      loadMore.textContent = "Afficher plus de réponses";
+    }
+  }
+}
+
+async function loadMoreDiscussionThread() {
+  if (!currentDiscussionDetail?.thread?.hasMore) return;
+  discussionThreadPage += 1;
+  await loadDiscussionDetail(false);
 }
 
 function fillCategorySelect() {
@@ -1208,6 +1287,10 @@ function init() {
         .forEach((t) => t.classList.toggle("active", t === tab));
       renderDiscussions();
     });
+  });
+
+  document.getElementById("discussThreadLoadMore")?.addEventListener("click", () => {
+    loadMoreDiscussionThread();
   });
 
   document.getElementById("replyForm").addEventListener("submit", (e) => {

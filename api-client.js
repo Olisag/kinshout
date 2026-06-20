@@ -316,7 +316,11 @@ export const api = {
       return request(`/api/discussions?${params}`);
     },
 
-    get: (id) => request(`/api/discussions/${id}`),
+    get: (id, options = {}) => {
+      const { page = 1, pageSize = 20 } = options;
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      return request(`/api/discussions/${id}?${params}`);
+    },
 
     create: (payload) =>
 
