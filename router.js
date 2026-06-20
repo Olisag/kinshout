@@ -86,6 +86,7 @@ export function navTabForView(view) {
     discussions: "discussions",
     "discussion-detail": "discussions",
     account: "account",
+    "my-adverts": "account",
     categorize: "search",
   };
   return map[view] || "home";

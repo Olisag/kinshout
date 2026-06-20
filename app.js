@@ -40,6 +40,7 @@ let searchQuery = "";
 let resultsTab = "all";
 let selectedCategory = null;
 let publishDraft = {
+  editingId: null,
   text: "",
   category: null,
   quartier: "",
@@ -47,6 +48,7 @@ let publishDraft = {
   type: "demande",
   photos: [],
   resume: null,
+  resumeUrl: null,
 };
 let currentListingId = null;
 let currentDiscussionId = null;
@@ -85,6 +87,7 @@ const BACK_VIEWS = new Set([
   "publish-2",
   "publish-3",
   "discussion-detail",
+  "my-adverts",
 ]);
 
 // Register views
@@ -99,6 +102,7 @@ const BACK_VIEWS = new Set([
   "discussions",
   "discussion-detail",
   "account",
+  "my-adverts",
 ].forEach((name) => {
   registerView(name, document.getElementById(`view-${name}`));
 });
@@ -145,6 +149,20 @@ function go(view, data) {
   }
   if (view === "account") {
     refreshAccountView();
+  }
+  if (view === "my-adverts") {
+    if (!isSignedIn()) {
+      alert("Connectez-vous pour gérer vos annonces.");
+      navigate("account", { replace: true });
+      setNavTab("account", navItems);
+      updateHeader("account");
+      refreshAccountView();
+      return;
+    }
+    renderMyAdverts();
+  }
+  if (view.startsWith("publish-")) {
+    updatePublishModeUi();
   }
 }
 
@@ -282,7 +300,7 @@ function listingImages(ad) {
 
 function listingThumb(ad) {
   const images = listingImages(ad);
-  return images[0] || "";
+  return images[0] ? displayImageUrl(images[0]) : "";
 }
 
 function whatsappLink(number) {
@@ -297,14 +315,53 @@ function updateProfileWhatsAppUi() {
   const saved = getWhatsAppNumber();
   input.value = saved;
   if (hasWhatsAppProfile()) {
-    status.textContent = "✓ Numéro enregistré — vous pouvez publier et être contacté.";
-    status.className = "profile-whatsapp-status is-ok";
+    setProfileWhatsAppStatus("✓ Numéro enregistré — vous pouvez publier et être contacté.", "ok");
     card.classList.remove("is-missing");
   } else {
-    status.textContent = "Ajoutez votre WhatsApp pour publier une annonce.";
-    status.className = "profile-whatsapp-status is-warn";
+    setProfileWhatsAppStatus("Ajoutez votre WhatsApp pour publier une annonce.", "warn");
     card.classList.add("is-missing");
   }
+}
+
+function setProfileWhatsAppStatus(message, kind = "") {
+  const status = document.getElementById("profileWhatsAppStatus");
+  if (!status) return;
+  status.textContent = message;
+  status.className = `profile-whatsapp-status${kind ? ` is-${kind}` : ""}`;
+}
+
+function toUploadPath(url) {
+  if (!url) return "";
+  if (url.startsWith("/uploads/")) return url;
+  try {
+    const path = new URL(url).pathname;
+    return path.startsWith("/uploads/") ? path : url;
+  } catch {
+    return url;
+  }
+}
+
+function displayImageUrl(url) {
+  if (!url) return "";
+  if (url.startsWith("http") || url.startsWith("blob:") || url.startsWith("data:")) return url;
+  return `${api.baseUrl}${url.startsWith("/") ? url : `/${url}`}`;
+}
+
+function apiAdvertToListing(ad) {
+  return {
+    id: ad.id,
+    title: ad.title,
+    price: ad.price || "—",
+    location: ad.location || "Kinshasa",
+    time: ad.time,
+    category: ad.categoryId,
+    intent: ad.intent,
+    images: ad.imageUrls || [],
+    resumeUrl: ad.resumeUrl,
+    tags: ad.tags || [],
+    description: ad.description,
+    whatsapp: ad.whatsAppNumber,
+  };
 }
 
 function ensureWhatsAppForPublish() {
@@ -483,7 +540,7 @@ function showAdPhoto(ad, index) {
   document.getElementById("adImage").hidden = false;
   document.getElementById("adCounter").hidden = images.length <= 1;
   currentAdPhotoIndex = ((index % images.length) + images.length) % images.length;
-  document.getElementById("adImage").src = images[currentAdPhotoIndex];
+  document.getElementById("adImage").src = displayImageUrl(images[currentAdPhotoIndex]);
   document.getElementById("adImage").alt = ad.title;
   document.getElementById("adCounter").textContent = `${currentAdPhotoIndex + 1}/${images.length}`;
 }
@@ -625,6 +682,159 @@ function updatePublishResumeVisibility() {
   section.hidden = !show;
 }
 
+function updatePublishModeUi() {
+  const isEdit = Boolean(publishDraft.editingId);
+  const submit = document.getElementById("publishSubmit");
+  if (submit) submit.textContent = isEdit ? "Enregistrer les modifications" : "Publier maintenant";
+  document.querySelectorAll("#view-publish-2 .page-title, #view-publish-3 .page-title").forEach((el) => {
+    el.textContent = isEdit ? "Modifier l'annonce" : "Déposer une annonce";
+  });
+}
+
+function resetPublishDraft() {
+  publishDraft.photos.forEach((photo) => {
+    if (photo.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(photo.previewUrl);
+  });
+  publishDraft = {
+    editingId: null,
+    text: "",
+    category: null,
+    quartier: "",
+    prix: "",
+    type: "demande",
+    photos: [],
+    resume: null,
+    resumeUrl: null,
+  };
+  document.getElementById("publishText").value = "";
+  document.getElementById("publishCount").textContent = "0/1000";
+  renderPublishPhotoGrid();
+  updatePublishResumeLabel();
+  document.getElementById("publishResumeInput").value = "";
+  updatePublishModeUi();
+}
+
+async function renderMyAdverts() {
+  const list = document.getElementById("myAdvertsList");
+  const empty = document.getElementById("myAdvertsEmpty");
+  list.innerHTML = '<p class="profile-whatsapp-status">Chargement…</p>';
+  empty.hidden = true;
+
+  try {
+    const adverts = await api.adverts.listMine();
+    if (!adverts.length) {
+      list.innerHTML = "";
+      empty.hidden = false;
+      return;
+    }
+
+    list.innerHTML = adverts
+      .map(
+        (ad) => `
+      <article class="my-advert-card">
+        <div class="my-advert-body">
+          <h2 class="my-advert-title">${escapeHtml(ad.title)}</h2>
+          <p class="my-advert-meta">${escapeHtml(ad.price || "—")} · ${escapeHtml(ad.location || "Kinshasa")} · ${escapeHtml(ad.time)}</p>
+        </div>
+        <button type="button" class="btn-primary-inline my-advert-edit" data-id="${ad.id}">Modifier</button>
+      </article>`
+      )
+      .join("");
+
+    list.querySelectorAll(".my-advert-edit").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const ad = adverts.find((item) => item.id === btn.dataset.id);
+        if (ad) startEditAdvert(ad);
+      });
+    });
+  } catch (err) {
+    list.innerHTML = "";
+    empty.textContent = err.message || "Impossible de charger vos annonces.";
+    empty.hidden = false;
+  }
+}
+
+function startEditAdvert(ad) {
+  publishDraft.photos.forEach((photo) => {
+    if (photo.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(photo.previewUrl);
+  });
+
+  publishDraft = {
+    editingId: ad.id,
+    text: ad.description,
+    category: { categoryId: ad.categoryId },
+    quartier: ad.location || "",
+    prix: ad.price || "",
+    type: ad.intent || "demande",
+    photos: (ad.imageUrls || []).map((url) => ({
+      existingUrl: toUploadPath(url),
+      previewUrl: displayImageUrl(url),
+    })),
+    resume: null,
+    resumeUrl: ad.resumeUrl ? toUploadPath(ad.resumeUrl) : null,
+  };
+
+  document.getElementById("publishText").value = ad.description;
+  document.getElementById("publishCount").textContent = `${ad.description.length}/1000`;
+  renderPublishPhotoGrid();
+  updatePublishResumeLabel();
+  go("publish-1");
+}
+
+async function submitPublish() {
+  if (!ensureWhatsAppForPublish()) return;
+
+  const submitBtn = document.getElementById("publishSubmit");
+  const wasEdit = Boolean(publishDraft.editingId);
+  submitBtn.disabled = true;
+  submitBtn.textContent = wasEdit ? "Enregistrement…" : "Publication…";
+
+  try {
+    const newFiles = publishDraft.photos.filter((photo) => photo.file).map((photo) => photo.file);
+    const uploadedUrls = newFiles.length ? await api.uploads.images(newFiles) : [];
+    const existingUrls = publishDraft.photos
+      .filter((photo) => photo.existingUrl)
+      .map((photo) => photo.existingUrl);
+    const imageUrls = [...existingUrls, ...uploadedUrls.map(toUploadPath)];
+
+    if (imageUrls.length > MAX_PUBLISH_PHOTOS) {
+      throw new Error(`Maximum ${MAX_PUBLISH_PHOTOS} photos par annonce.`);
+    }
+
+    let resumeUrl = publishDraft.resumeUrl || null;
+    if (publishDraft.resume?.file) {
+      resumeUrl = toUploadPath(await api.uploads.resume(publishDraft.resume.file));
+    }
+
+    const payload = {
+      text: publishDraft.text,
+      price: document.getElementById("pubPrix").value.trim() || null,
+      location: document.getElementById("pubQuartier").value.trim() || null,
+      imageUrls,
+      resumeUrl,
+      intent: document.getElementById("pubType").value,
+    };
+
+    const saved = wasEdit
+      ? await api.adverts.update(publishDraft.editingId, payload)
+      : await api.adverts.create(payload);
+
+    const listing = apiAdvertToListing(saved);
+    const existingIndex = LISTINGS.findIndex((item) => item.id === listing.id);
+    if (existingIndex >= 0) LISTINGS[existingIndex] = listing;
+    else LISTINGS.unshift(listing);
+
+    resetPublishDraft();
+    alert(wasEdit ? "Annonce mise à jour !" : "Annonce publiée sur Kinshout !");
+    go("my-adverts");
+  } catch (err) {
+    alert(err.message || "Impossible de publier l'annonce.");
+  } finally {
+    submitBtn.disabled = false;
+    updatePublishModeUi();
+  }
+}
+
 function renderPublishPhotoGrid() {
   const grid = document.getElementById("publishPhotoGrid");
   const hint = document.getElementById("publishPhotoHint");
@@ -650,7 +860,8 @@ function renderPublishPhotoGrid() {
   grid.querySelectorAll(".publish-photo-remove").forEach((btn) => {
     btn.addEventListener("click", () => {
       const index = Number(btn.dataset.index);
-      URL.revokeObjectURL(publishDraft.photos[index].previewUrl);
+      const photo = publishDraft.photos[index];
+      if (photo?.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(photo.previewUrl);
       publishDraft.photos.splice(index, 1);
       renderPublishPhotoGrid();
     });
@@ -677,6 +888,9 @@ function updatePublishResumeLabel() {
   const nameEl = document.getElementById("publishResumeName");
   if (publishDraft.resume) {
     nameEl.textContent = publishDraft.resume.file.name;
+    nameEl.hidden = false;
+  } else if (publishDraft.resumeUrl) {
+    nameEl.textContent = publishDraft.resumeUrl.split("/").pop();
     nameEl.hidden = false;
   } else {
     nameEl.hidden = true;
@@ -715,7 +929,19 @@ function renderPublishPreview() {
 
 function initPublishStep2() {
   fillCategorySelect();
-  runPublishAi();
+  if (publishDraft.editingId) {
+    document.getElementById("pubCategory").value =
+      PUBLISH_CATEGORY_LABELS[publishDraft.category?.categoryId]
+        ? publishDraft.category.categoryId
+        : "emploi_services";
+    document.getElementById("pubQuartier").value = publishDraft.quartier || "";
+    document.getElementById("pubPrix").value = publishDraft.prix || "";
+    document.getElementById("pubType").value = publishDraft.type || "demande";
+    document.getElementById("publishAiHint").textContent = "Modifiez les détails si nécessaire.";
+    updatePublishResumeVisibility();
+  } else {
+    runPublishAi();
+  }
 }
 
 function init() {
@@ -792,20 +1018,33 @@ function init() {
   document.getElementById("pubType").addEventListener("change", updatePublishResumeVisibility);
 
   document.getElementById("profileWhatsAppSave").addEventListener("click", async () => {
+    const btn = document.getElementById("profileWhatsAppSave");
     const normalized = normalizeWhatsApp(document.getElementById("profileWhatsApp").value.trim());
     if (!normalized) {
       alert("Entrez un numéro WhatsApp valide (ex. +243 900 000 000).");
       return;
     }
+    btn.disabled = true;
     try {
       if (isSignedIn()) {
         authUser = await api.auth.updateProfile(normalized);
       }
-      setWhatsAppNumber(normalized);
+      setWhatsAppNumber(authUser?.whatsAppNumber || normalized);
       updateProfileWhatsAppUi();
     } catch (err) {
-      alert(err.message || "Impossible de mettre à jour le profil.");
+      setProfileWhatsAppStatus(err.message || "Impossible de mettre à jour le profil.", "warn");
+    } finally {
+      btn.disabled = false;
     }
+  });
+
+  document.getElementById("accountMyAdverts").addEventListener("click", () => {
+    if (!isSignedIn()) {
+      alert("Connectez-vous pour gérer vos annonces.");
+      go("account");
+      return;
+    }
+    go("my-adverts");
   });
 
   document.getElementById("facebookLoginBtn").addEventListener("click", async () => {
@@ -847,43 +1086,7 @@ function init() {
   document.getElementById("publishBack3").addEventListener("click", () => go("publish-2"));
 
   document.getElementById("publishSubmit").addEventListener("click", () => {
-    if (!ensureWhatsAppForPublish()) return;
-
-    const categoryId = document.getElementById("pubCategory").value;
-    const newId = String(Date.now());
-    const images = publishDraft.photos.map((p) => p.previewUrl);
-    LISTINGS.unshift({
-      id: newId,
-      title: publishDraft.text.slice(0, 80),
-      price: document.getElementById("pubPrix").value || "—",
-      location: document.getElementById("pubQuartier").value || "Kinshasa",
-      time: "À l'instant",
-      category: categoryId,
-      intent: document.getElementById("pubType").value,
-      images,
-      resumeUrl: publishDraft.resume ? "#" : null,
-      tags: publishDraft.category?.summary ? [publishDraft.category.summary.slice(0, 40)] : ["Nouveau"],
-      description: publishDraft.text,
-      whatsapp: getWhatsAppNumber(),
-    });
-
-    publishDraft.photos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
-    publishDraft = {
-      text: "",
-      category: null,
-      quartier: "",
-      prix: "",
-      type: "demande",
-      photos: [],
-      resume: null,
-    };
-    publishText.value = "";
-    updatePublishTextState();
-    renderPublishPhotoGrid();
-    updatePublishResumeLabel();
-    publishResumeInput.value = "";
-    alert("Annonce publiée sur Kinshout !");
-    go("home");
+    submitPublish();
   });
 
   document.getElementById("discussSearchInput").addEventListener("input", renderDiscussions);
@@ -954,6 +1157,9 @@ function init() {
     item.addEventListener("click", (e) => {
       e.preventDefault();
       const route = TAB_ROUTES[item.dataset.tab];
+      if (route === "publish-1" && !publishDraft.editingId) {
+        resetPublishDraft();
+      }
       if (route) go(route);
     });
   });

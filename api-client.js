@@ -228,8 +228,6 @@ export const api = {
 
   auth: {
 
-    auth: {
-
     facebook: (accessToken) =>
       request("/api/auth/facebook", { method: "POST", body: { accessToken } }),
 
@@ -240,7 +238,7 @@ export const api = {
     me: () => request("/api/auth/me", { auth: true }),
 
     updateProfile: (whatsappNumber) =>
-      request("/api/auth/me", { method: "PATCH", body: { whatsAppNumber }, auth: true }),
+      request("/api/auth/me", { method: "PATCH", body: { whatsAppNumber: whatsappNumber }, auth: true }),
 
     setSession({ token }) {
 
@@ -277,6 +275,10 @@ export const api = {
     get: (id) => request(`/api/adverts/${id}`),
 
     create: (payload) => request("/api/adverts", { method: "POST", body: payload, auth: true }),
+
+    listMine: () => request("/api/adverts/mine", { auth: true }),
+
+    update: (id, payload) => request(`/api/adverts/${id}`, { method: "PUT", body: payload, auth: true }),
 
   },
 
