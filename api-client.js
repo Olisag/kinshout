@@ -268,9 +268,12 @@ export const api = {
 
   adverts: {
 
-    list: (categoryId) =>
-
-      request(categoryId ? `/api/adverts?categoryId=${categoryId}` : "/api/adverts"),
+    list: (options = {}) => {
+      const { categoryId, page = 1, pageSize = 20, sort = "recent" } = options;
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), sort });
+      if (categoryId) params.set("categoryId", categoryId);
+      return request(`/api/adverts?${params}`);
+    },
 
     get: (id) => request(`/api/adverts/${id}`),
 
@@ -306,7 +309,12 @@ export const api = {
 
   discussions: {
 
-    list: (q) => request(q ? `/api/discussions?q=${encodeURIComponent(q)}` : "/api/discussions"),
+    list: (options = {}) => {
+      const { q, page = 1, pageSize = 20, sort = "recent" } = options;
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), sort });
+      if (q) params.set("q", q);
+      return request(`/api/discussions?${params}`);
+    },
 
     get: (id) => request(`/api/discussions/${id}`),
 
