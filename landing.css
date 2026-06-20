@@ -1,0 +1,396 @@
+/* Final Accueil landing screen from the provided reference. */
+
+.home-page {
+  display: block !important;
+  min-height: auto !important;
+  margin: 0 !important;
+  width: 100% !important;
+}
+
+.home-page.view-active {
+  display: block !important;
+}
+
+.main:has(.home-page.view-active) {
+  padding: 0 1rem calc(var(--nav-height) + var(--safe-bottom) + 1rem) !important;
+}
+
+.home-content {
+  padding: 0 !important;
+}
+
+.home-page .hero {
+  margin: 0 0 1rem !important;
+  padding-top: 1.1rem !important;
+}
+
+.home-page .hero-title {
+  font-size: 1.72rem !important;
+  line-height: 1.08 !important;
+  letter-spacing: -0.055em !important;
+  margin-bottom: 0.55rem !important;
+  color: #111d35 !important;
+}
+
+.home-page .hero-title .dot {
+  color: #ff4d12 !important;
+}
+
+.home-page .hero-taglines {
+  gap: 0 !important;
+}
+
+.home-page .hero-taglines span {
+  font-size: 0.67rem !important;
+  line-height: 1.46 !important;
+  color: #657085 !important;
+}
+
+.home-search {
+  margin: 1.05rem 0 1rem !important;
+}
+
+.home-search .search-bar {
+  min-height: 44px !important;
+  border-radius: 11px !important;
+  padding: 0.25rem 0.25rem 0.25rem 0.75rem !important;
+  background: #fff !important;
+  border: 1px solid #eef1f5 !important;
+  box-shadow: 0 7px 24px rgba(15, 23, 42, 0.08) !important;
+}
+
+.home-search .search-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.home-search .search-input,
+.home-search .cli-input,
+.home-search .search-input::placeholder,
+.home-search .cli-input::placeholder {
+  font-family: var(--font) !important;
+  font-size: 0.62rem !important;
+  letter-spacing: 0 !important;
+  color: #7a8494 !important;
+}
+
+.home-search .search-submit {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 9px !important;
+  background: #ff4d12 !important;
+}
+
+.home-search .search-submit svg {
+  width: 18px;
+  height: 18px;
+}
+
+.home-page .popular {
+  margin-bottom: 1.05rem !important;
+}
+
+.home-page .section-title {
+  margin-bottom: 0.62rem !important;
+  font-size: 0.68rem !important;
+  font-weight: 900 !important;
+  color: #111d35 !important;
+}
+
+.home-page .pills {
+  grid-template-columns: 1fr 1fr !important;
+  gap: 0.5rem !important;
+}
+
+.home-page .pill {
+  min-height: 29px !important;
+  padding: 0.38rem 0.58rem !important;
+  border: 1px solid #f0f2f6 !important;
+  border-radius: 999px !important;
+  background: #fff !important;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.045) !important;
+  color: #101d34 !important;
+  font-size: 0.52rem !important;
+  font-weight: 800 !important;
+  line-height: 1.1 !important;
+}
+
+.home-page .pill-icon svg {
+  width: 11px;
+  height: 11px;
+}
+
+.home-cta {
+  gap: 0.7rem !important;
+  margin-top: 1.05rem !important;
+  margin-bottom: 0 !important;
+}
+
+.home-cta .cta-card {
+  min-height: 62px !important;
+  border-radius: 12px !important;
+  padding: 0.72rem 0.78rem !important;
+  gap: 0.72rem !important;
+}
+
+.home-cta .cta-post {
+  background: #fff2eb !important;
+  border-color: #ffe3d4 !important;
+}
+
+.home-cta .cta-discuss {
+  background: #f3efff !important;
+  border-color: #e9e1ff !important;
+}
+
+.home-cta .cta-icon {
+  width: 36px !important;
+  height: 36px !important;
+}
+
+.home-cta .cta-title {
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+  color: #101d34 !important;
+}
+
+.home-cta .cta-sub {
+  font-size: 0.53rem !important;
+  color: #536076 !important;
+  line-height: 1.4 !important;
+}
+
+.home-cta .cta-chevron {
+  color: #ff4d12 !important;
+  font-size: 1.2rem !important;
+}
+
+.home-cta .cta-chevron-purple {
+  color: #5f35bf !important;
+}
+
+.home-page .skyline {
+  display: none !important;
+}
+
+.app:has(.home-page.view-active) .bottom-nav {
+  display: none !important;
+}
+
+/* Search tab screen */
+.search-page {
+  padding-top: 0.65rem;
+}
+
+.search-page .page-title {
+  display: block !important;
+  text-align: left !important;
+  margin: 0 0 1.25rem !important;
+  color: #101d34 !important;
+  font-size: 0.92rem !important;
+  font-weight: 900 !important;
+}
+
+.search-page .search-bar-compact {
+  min-height: 45px !important;
+  margin-bottom: 1.35rem !important;
+  border: 1px solid #dfe5ee !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  padding: 0.2rem 0.2rem 0.2rem 0.75rem !important;
+}
+
+.search-page .search-icon svg,
+.search-page .search-submit svg {
+  width: 17px;
+  height: 17px;
+}
+
+.search-page .search-input,
+.search-page .search-input::placeholder {
+  font-size: 0.62rem !important;
+  color: #667085 !important;
+}
+
+.search-page .search-submit-plain {
+  width: 34px !important;
+  height: 34px !important;
+  background: transparent !important;
+  color: #101d34 !important;
+  border-radius: 8px !important;
+}
+
+.suggestions-title {
+  margin: 0 0 0.75rem;
+  color: #101d34;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.search-page .category-list {
+  display: grid !important;
+  gap: 0.72rem !important;
+  border-top: 0 !important;
+}
+
+.search-page .category-item {
+  min-height: 52px !important;
+  padding: 0.72rem 0.78rem !important;
+  border: 1px solid #edf1f6 !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.045) !important;
+  color: #101d34 !important;
+  font-size: 0.68rem !important;
+  font-weight: 800 !important;
+}
+
+.search-page .category-item-icon {
+  width: 26px !important;
+  height: 26px !important;
+  border-radius: 8px !important;
+  display: grid !important;
+  place-items: center !important;
+  font-size: 0.85rem !important;
+  font-weight: 900 !important;
+}
+
+.search-page .category-item-chevron {
+  color: #617089 !important;
+}
+
+.category-icon-immobilier {
+  background: #fff0ea !important;
+  color: #ff4d12 !important;
+}
+
+.category-icon-vehicules_transport {
+  background: #eef2ff !important;
+  color: #3d63ff !important;
+}
+
+.category-icon-emploi_services {
+  background: #eefbf4 !important;
+  color: #0ba66b !important;
+}
+
+.category-icon-electronique {
+  background: #eef6ff !important;
+  color: #2678e5 !important;
+}
+
+.category-icon-maison_jardin {
+  background: #fff0f8 !important;
+  color: #f03799 !important;
+}
+
+.category-icon-discussion {
+  background: #f3efff !important;
+  color: #6c3fd1 !important;
+}
+
+/* Results tab screen */
+.results-page {
+  padding-top: 0.45rem;
+}
+
+.results-page .results-search-row {
+  display: grid !important;
+  grid-template-columns: 1fr 38px !important;
+  gap: 0.58rem !important;
+  margin-bottom: 0.95rem !important;
+}
+
+.results-page .search-bar {
+  min-height: 38px !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  border: 1px solid #edf1f6 !important;
+  padding: 0.2rem 0.55rem !important;
+}
+
+.results-page .search-input {
+  font-size: 0.62rem !important;
+  color: #101d34 !important;
+}
+
+.results-page .search-icon {
+  color: #667085 !important;
+}
+
+.results-page .search-submit {
+  display: none !important;
+}
+
+.results-page .filter-btn-icon {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+  border: 1px solid #edf1f6 !important;
+  color: #101d34 !important;
+  font-size: 0.75rem !important;
+}
+
+.results-page .tabs {
+  gap: 1.55rem !important;
+  margin-bottom: 1.05rem !important;
+  border-bottom: 1px solid #edf1f6 !important;
+}
+
+.results-page .tab {
+  padding: 0 0 0.62rem !important;
+  font-size: 0.62rem !important;
+  font-weight: 800 !important;
+}
+
+.results-page .tab.active {
+  color: #ff4d12 !important;
+  border-bottom-color: #ff4d12 !important;
+}
+
+.results-page .listing-cards {
+  gap: 0.9rem !important;
+}
+
+.results-page .listing-card {
+  display: grid !important;
+  grid-template-columns: 102px 1fr 24px !important;
+  gap: 0.72rem !important;
+  align-items: start !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.results-page .listing-thumb {
+  width: 102px !important;
+  height: 78px !important;
+  border-radius: 9px !important;
+}
+
+.results-page .listing-title {
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+  line-height: 1.3 !important;
+  color: #101d34 !important;
+}
+
+.results-page .listing-price {
+  margin-top: 0.22rem !important;
+  color: #ff4d12 !important;
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+}
+
+.results-page .listing-meta {
+  margin-top: 0.32rem !important;
+  color: #667085 !important;
+  font-size: 0.58rem !important;
+}
+
+.results-page .listing-fav {
+  color: #1c2c4a !important;
+  font-size: 1.18rem !important;
+}

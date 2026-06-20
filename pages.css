@@ -319,16 +319,94 @@
   cursor: pointer;
 }
 
-.btn-call {
-  flex: 1;
-  padding: 0.85rem;
-  background: var(--bg);
-  color: var(--navy);
+.btn-whatsapp-full {
+  width: 100%;
+}
+
+.btn-whatsapp:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ad-resume {
+  margin: 0.75rem 0 0;
+  font-size: 0.88rem;
+}
+
+.ad-resume a {
+  color: var(--orange);
   font-weight: 700;
-  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.ad-gallery:has(#adImage[hidden]) {
+  background: linear-gradient(135deg, #eef2f7, #dfe6ef);
+  min-height: 220px;
+}
+
+.profile-whatsapp-card {
+  margin: 0 1.25rem 1rem;
+  padding: 1rem;
+  background: #fff;
   border: 1px solid var(--pill-border);
   border-radius: var(--radius);
+}
+
+.profile-whatsapp-card.is-missing {
+  border-color: #f5c16c;
+  background: #fffaf2;
+}
+
+.profile-section-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.required-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #b54708;
+  text-transform: uppercase;
+}
+
+.profile-section-desc {
+  margin: 0 0 0.75rem;
+  font-size: 0.78rem;
+  color: var(--navy-muted);
+  line-height: 1.45;
+}
+
+.profile-whatsapp-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+}
+
+.btn-primary-inline {
+  padding: 0.65rem 0.85rem;
+  background: var(--orange);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-weight: 800;
+  font-size: 0.78rem;
   cursor: pointer;
+}
+
+.profile-whatsapp-status {
+  margin: 0.65rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.profile-whatsapp-status.is-ok {
+  color: #027a48;
+}
+
+.profile-whatsapp-status.is-warn {
+  color: #b54708;
 }
 
 .app.show-ad-footer .bottom-nav {

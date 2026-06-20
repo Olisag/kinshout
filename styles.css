@@ -56,6 +56,10 @@ button {
   background: none;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .app {
   max-width: 430px;
   margin: 0 auto;
@@ -146,7 +150,7 @@ button {
 .drawer-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(26, 43, 74, 0.4);
+  background: rgba(26, 43, 74, 0.18);
   z-index: 80;
   animation: fadeIn 0.2s ease;
 }

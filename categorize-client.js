@@ -97,14 +97,32 @@ export function categorizeLocal(text) {
   };
 }
 
+const API_BASE =
+  (typeof window !== "undefined" && window.KINSHOUT_API) ||
+  "";
+
 export async function categorizeQuery(text) {
+  const url = API_BASE ? `${API_BASE}/api/categorize` : "/api/categorize";
   try {
-    const res = await fetch("/api/categorize", {
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
     });
-    if (res.ok) return await res.json();
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        categoryId: data.categoryId,
+        categoryLabel: data.categoryLabel,
+        categoryIcon: data.categoryIcon,
+        intent: data.intent,
+        intentLabel: data.intentLabel,
+        confidence: data.confidence,
+        summary: data.summary,
+        source: data.source,
+        matchedKeywords: [],
+      };
+    }
   } catch {
     /* offline or static file — use local rules */
   }

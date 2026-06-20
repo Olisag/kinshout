@@ -28,11 +28,49 @@ const drawerBackdrop = document.getElementById("drawerBackdrop");
 const drawerClose = document.getElementById("drawerClose");
 const navItems = document.querySelectorAll(".nav-item");
 
+const WHATSAPP_KEY = "kinshout_whatsapp";
+const MAX_PUBLISH_PHOTOS = 10;
+
 let searchQuery = "";
 let resultsTab = "all";
-let publishDraft = { text: "", category: null, quartier: "", prix: "", type: "demande" };
+let selectedCategory = null;
+let publishDraft = {
+  text: "",
+  category: null,
+  quartier: "",
+  prix: "",
+  type: "demande",
+  photos: [],
+  resume: null,
+};
 let currentListingId = null;
 let currentDiscussionId = null;
+let currentAdPhotoIndex = 0;
+
+const CATEGORY_QUERIES = {
+  immobilier: "Appartement à louer à Gombe",
+  vehicules_transport: "Véhicules",
+  emploi_services: "Emplois",
+  electronique: "Électroniques",
+  maison_jardin: "Services",
+  discussion: "Discussions",
+};
+
+const PUBLISH_CATEGORY_LABELS = {
+  immobilier: "Immobilier",
+  vehicules_transport: "Véhicules",
+  emploi_services: "Emplois",
+  electronique: "Électroniques",
+  maison_jardin: "Services",
+};
+
+const TAB_ROUTES = {
+  home: "home",
+  search: "search",
+  publish: "publish-1",
+  discussions: "discussions",
+  account: "account",
+};
 
 const BACK_VIEWS = new Set([
   "results",
@@ -74,20 +112,101 @@ function openDrawer() {
 
 function updateHeader(view) {
   const showBack = BACK_VIEWS.has(view) || view.startsWith("publish-");
+  const isPublish = view.startsWith("publish-");
   appHeader.classList.toggle("header-back-only", showBack);
   app.classList.toggle("show-ad-footer", view === "ad-detail");
+  app.classList.toggle("is-publish", isPublish);
 }
 
 function go(view, data) {
+  if (view === "publish" || view === "publier" || view === "deposer") {
+    view = "publish-1";
+  }
+  if (view === "publish-1" && !hasWhatsAppProfile()) {
+    alert("Ajoutez votre numéro WhatsApp dans Mon compte avant de publier.");
+    view = "account";
+  }
   navigate(view, { data });
   setNavTab(navTabForView(view), navItems);
   updateHeader(view);
+
+  if (view === "discussions") {
+    renderDiscussions();
+  }
+  if (view === "account") {
+    updateProfileWhatsAppUi();
+  }
 }
 
 function escapeHtml(s) {
   const d = document.createElement("div");
   d.textContent = s;
   return d.innerHTML;
+}
+
+function formatPublishedTime(time) {
+  const clean = time.replace(/^Il y a\s*/i, "").replace(/\s+/g, "");
+  return `Publié il y a ${clean}`;
+}
+
+function getWhatsAppNumber() {
+  return localStorage.getItem(WHATSAPP_KEY) || USER.whatsapp || "";
+}
+
+function setWhatsAppNumber(number) {
+  localStorage.setItem(WHATSAPP_KEY, number);
+  USER.whatsapp = number;
+}
+
+function normalizeWhatsApp(number) {
+  const digits = number.replace(/\D/g, "");
+  if (digits.startsWith("243") && digits.length >= 12) return `+${digits}`;
+  if (digits.length === 9) return `+243${digits}`;
+  if (digits.length >= 10) return `+${digits}`;
+  return "";
+}
+
+function hasWhatsAppProfile() {
+  return normalizeWhatsApp(getWhatsAppNumber()).length > 0;
+}
+
+function listingImages(ad) {
+  if (Array.isArray(ad.images) && ad.images.length) return ad.images;
+  return ad.image ? [ad.image] : [];
+}
+
+function listingThumb(ad) {
+  const images = listingImages(ad);
+  return images[0] || "";
+}
+
+function whatsappLink(number) {
+  const digits = (number || "").replace(/\D/g, "");
+  return digits ? `https://wa.me/${digits}` : null;
+}
+
+function updateProfileWhatsAppUi() {
+  const input = document.getElementById("profileWhatsApp");
+  const status = document.getElementById("profileWhatsAppStatus");
+  const card = document.getElementById("profileWhatsAppCard");
+  const saved = getWhatsAppNumber();
+  input.value = saved;
+  if (hasWhatsAppProfile()) {
+    status.textContent = "✓ Numéro enregistré — vous pouvez publier et être contacté.";
+    status.className = "profile-whatsapp-status is-ok";
+    card.classList.remove("is-missing");
+  } else {
+    status.textContent = "Ajoutez votre WhatsApp pour publier une annonce.";
+    status.className = "profile-whatsapp-status is-warn";
+    card.classList.add("is-missing");
+  }
+}
+
+function ensureWhatsAppForPublish() {
+  if (hasWhatsAppProfile()) return true;
+  alert("Ajoutez votre numéro WhatsApp dans Mon compte avant de publier.");
+  go("account");
+  return false;
 }
 
 // --- Home pills ---
@@ -111,21 +230,28 @@ function renderCategories() {
   ul.innerHTML = CATEGORIES.map(
     (c) => `
     <li><button type="button" class="category-item" data-cat="${c.id}">
-      <span class="category-item-icon">${c.icon}</span>
+      <span class="category-item-icon category-icon-${c.id}">${c.icon}</span>
       ${escapeHtml(c.label)}
       <span class="category-item-chevron">›</span>
     </button></li>`
   ).join("");
   ul.querySelectorAll(".category-item").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const label = CATEGORIES.find((x) => x.id === btn.dataset.cat)?.label || "";
-      openResults(label);
+      openCategoryResults(btn.dataset.cat);
     });
   });
 }
 
 // --- Results ---
 function filterListings(query) {
+  if (selectedCategory) {
+    return LISTINGS.filter(
+      (l) =>
+        l.category === selectedCategory ||
+        (selectedCategory === "maison_jardin" && l.category === "emploi_services")
+    );
+  }
+
   const q = query.toLowerCase();
   return LISTINGS.filter(
     (l) =>
@@ -142,6 +268,7 @@ function filterListings(query) {
 
 function filterDiscussions(query) {
   const q = query.toLowerCase();
+  if (selectedCategory === "discussion") return DISCUSSIONS;
   return DISCUSSIONS.filter(
     (d) => !q || d.title.toLowerCase().includes(q) || d.body.toLowerCase().includes(q)
   );
@@ -162,7 +289,7 @@ function renderResults() {
       .map(
         (l) => `
       <button type="button" class="listing-card" data-listing="${l.id}">
-        <img class="listing-thumb" src="${l.image}" alt="" loading="lazy" />
+        <img class="listing-thumb" src="${listingThumb(l)}" alt="" loading="lazy" />
         <span class="listing-body">
           <span class="listing-title">${escapeHtml(l.title)}</span>
           <span class="listing-price">${escapeHtml(l.price)}</span>
@@ -212,6 +339,7 @@ function renderResults() {
 
 function openResults(query) {
   searchQuery = query.trim();
+  selectedCategory = null;
   resultsTab = query.toLowerCase().includes("discussion") ? "discussions" : "all";
   document.querySelectorAll("#resultsTabs .tab").forEach((t) => {
     t.classList.toggle("active", t.dataset.tab === resultsTab || (resultsTab === "all" && t.dataset.tab === "all"));
@@ -220,27 +348,73 @@ function openResults(query) {
   go("results");
 }
 
+function openCategoryResults(categoryId) {
+  selectedCategory = categoryId;
+  searchQuery = CATEGORY_QUERIES[categoryId] || "";
+  resultsTab = categoryId === "discussion" ? "discussions" : "all";
+  document.querySelectorAll("#resultsTabs .tab").forEach((t) => {
+    t.classList.toggle("active", t.dataset.tab === resultsTab);
+  });
+  renderResults();
+  go("results");
+}
+
 // --- Ad detail ---
+function showAdPhoto(ad, index) {
+  const images = listingImages(ad);
+  if (!images.length) {
+    document.getElementById("adImage").src = "";
+    document.getElementById("adImage").alt = ad.title;
+    document.getElementById("adImage").hidden = true;
+    document.getElementById("adCounter").hidden = true;
+    return;
+  }
+
+  document.getElementById("adImage").hidden = false;
+  document.getElementById("adCounter").hidden = images.length <= 1;
+  currentAdPhotoIndex = ((index % images.length) + images.length) % images.length;
+  document.getElementById("adImage").src = images[currentAdPhotoIndex];
+  document.getElementById("adImage").alt = ad.title;
+  document.getElementById("adCounter").textContent = `${currentAdPhotoIndex + 1}/${images.length}`;
+}
+
 function openAd(id) {
   const ad = LISTINGS.find((l) => l.id === id);
   if (!ad) return;
   currentListingId = id;
-  document.getElementById("adImage").src = ad.image;
-  document.getElementById("adImage").alt = ad.title;
-  document.getElementById("adCounter").textContent = `1/${ad.photos}`;
+  showAdPhoto(ad, 0);
+  document.getElementById("adGallery").onclick = () => {
+    if (listingImages(ad).length > 1) showAdPhoto(ad, currentAdPhotoIndex + 1);
+  };
   document.getElementById("adTitle").textContent = ad.title;
   document.getElementById("adPrice").textContent = ad.price;
-  document.getElementById("adLocation").textContent = `${ad.location} · ${ad.time}`;
+  const detailLocation = ad.location.includes("Kinshasa") ? ad.location : `${ad.location}, Kinshasa`;
+  document.getElementById("adLocation").textContent = `${detailLocation} · ${formatPublishedTime(ad.time)}`;
   document.getElementById("adDesc").textContent = ad.description;
   document.getElementById("adTags").innerHTML = ad.tags
     .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
     .join("");
-  document.getElementById("adWhatsApp").onclick = () => {
-    window.open(`https://wa.me/${ad.phone.replace(/\D/g, "")}`, "_blank");
-  };
-  document.getElementById("adCall").onclick = () => {
-    window.location.href = `tel:${ad.phone}`;
-  };
+
+  const resumeEl = document.getElementById("adResume");
+  if (ad.resumeUrl) {
+    resumeEl.innerHTML = `<a href="${escapeHtml(ad.resumeUrl)}" target="_blank" rel="noopener">📄 CV disponible</a>`;
+    resumeEl.hidden = false;
+  } else {
+    resumeEl.hidden = true;
+    resumeEl.innerHTML = "";
+  }
+
+  const wa = whatsappLink(ad.whatsapp);
+  const waBtn = document.getElementById("adWhatsApp");
+  if (wa) {
+    waBtn.disabled = false;
+    waBtn.textContent = "Contacter sur WhatsApp";
+    waBtn.onclick = () => window.open(wa, "_blank");
+  } else {
+    waBtn.disabled = true;
+    waBtn.textContent = "WhatsApp indisponible";
+    waBtn.onclick = null;
+  }
   go("ad-detail");
 }
 
@@ -248,10 +422,15 @@ function openAd(id) {
 function renderDiscussions() {
   const el = document.getElementById("discussionsList");
   const q = document.getElementById("discussSearchInput").value.toLowerCase();
+  const activeTab =
+    document.querySelector("[data-discuss-tab].active")?.dataset.discussTab || "popular";
   const items = DISCUSSIONS.filter(
     (d) => !q || d.title.toLowerCase().includes(q) || d.body.toLowerCase().includes(q)
   );
-  el.innerHTML = items
+  const visibleItems =
+    activeTab === "recent" ? [...items].reverse() : [...items].sort((a, b) => b.replies - a.replies);
+
+  el.innerHTML = visibleItems
     .map(
       (d) => `
     <button type="button" class="discussion-card" data-id="${d.id}">
@@ -296,7 +475,7 @@ function openDiscussion(id) {
 function fillCategorySelect() {
   const sel = document.getElementById("pubCategory");
   sel.innerHTML = CATEGORIES.filter((c) => c.id !== "discussion")
-    .map((c) => `<option value="${c.id}">${escapeHtml(c.label)}</option>`)
+    .map((c) => `<option value="${c.id}">${escapeHtml(PUBLISH_CATEGORY_LABELS[c.id] || c.label)}</option>`)
     .join("");
 }
 
@@ -325,17 +504,102 @@ async function runPublishAi() {
     extractPrix(publishDraft.text) || (data.intent === "demande" ? "" : "Sur devis");
   document.getElementById("pubType").value = data.intent === "offre" ? "offre" : "demande";
   hint.textContent = `✨ ${data.categoryIcon} ${data.summary}`;
+  updatePublishResumeVisibility();
+}
+
+function updatePublishResumeVisibility() {
+  const categoryId = document.getElementById("pubCategory").value;
+  const type = document.getElementById("pubType").value;
+  const section = document.getElementById("publishResumeSection");
+  const show = categoryId === "emploi_services" && type === "demande";
+  section.hidden = !show;
+}
+
+function renderPublishPhotoGrid() {
+  const grid = document.getElementById("publishPhotoGrid");
+  const hint = document.getElementById("publishPhotoHint");
+  if (!publishDraft.photos.length) {
+    grid.hidden = true;
+    grid.innerHTML = "";
+    hint.textContent = "Photos facultatives · max 10";
+    return;
+  }
+
+  grid.hidden = false;
+  hint.textContent = `${publishDraft.photos.length}/${MAX_PUBLISH_PHOTOS} photo(s)`;
+  grid.innerHTML = publishDraft.photos
+    .map(
+      (photo, index) => `
+      <figure class="publish-photo-item">
+        <img src="${photo.previewUrl}" alt="" />
+        <button type="button" class="publish-photo-remove" data-index="${index}" aria-label="Supprimer">×</button>
+      </figure>`
+    )
+    .join("");
+
+  grid.querySelectorAll(".publish-photo-remove").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const index = Number(btn.dataset.index);
+      URL.revokeObjectURL(publishDraft.photos[index].previewUrl);
+      publishDraft.photos.splice(index, 1);
+      renderPublishPhotoGrid();
+    });
+  });
+}
+
+function addPublishPhotos(fileList) {
+  const remaining = MAX_PUBLISH_PHOTOS - publishDraft.photos.length;
+  if (remaining <= 0) {
+    alert(`Maximum ${MAX_PUBLISH_PHOTOS} photos.`);
+    return;
+  }
+
+  Array.from(fileList)
+    .slice(0, remaining)
+    .forEach((file) => {
+      if (!file.type.startsWith("image/")) return;
+      publishDraft.photos.push({ file, previewUrl: URL.createObjectURL(file) });
+    });
+  renderPublishPhotoGrid();
+}
+
+function updatePublishResumeLabel() {
+  const nameEl = document.getElementById("publishResumeName");
+  if (publishDraft.resume) {
+    nameEl.textContent = publishDraft.resume.file.name;
+    nameEl.hidden = false;
+  } else {
+    nameEl.hidden = true;
+    nameEl.textContent = "";
+  }
 }
 
 function renderPublishPreview() {
-  const cat =
-    CATEGORIES.find((c) => c.id === document.getElementById("pubCategory").value)?.label || "Annonce";
+  const categoryId = document.getElementById("pubCategory").value;
+  const cat = PUBLISH_CATEGORY_LABELS[categoryId] || "Annonce";
+  const quartier = document.getElementById("pubQuartier").value || "Kinshasa";
+  const prix = document.getElementById("pubPrix").value || "—";
+  const type = document.getElementById("pubType").value === "offre" ? "Offre" : "Recherche";
+  const photosHtml = publishDraft.photos.length
+    ? `<div class="preview-photos">${publishDraft.photos
+        .map((p) => `<img src="${p.previewUrl}" alt="" />`)
+        .join("")}</div>`
+    : `<div class="preview-no-photo">Sans photo</div>`;
+  const resumeHtml = publishDraft.resume
+    ? `<div><dt>CV</dt><dd>${escapeHtml(publishDraft.resume.file.name)}</dd></div>`
+    : "";
+
   document.getElementById("publishPreview").innerHTML = `
-    <img src="${LISTINGS[0].image}" alt="" />
     <div class="preview-card-body">
-      <strong>${escapeHtml(publishDraft.text.slice(0, 80))}${publishDraft.text.length > 80 ? "…" : ""}</strong>
-      <p class="listing-price" style="margin-top:0.5rem">${escapeHtml(document.getElementById("pubPrix").value || "—")}</p>
-      <p class="listing-meta">${escapeHtml(cat)} · ${escapeHtml(document.getElementById("pubQuartier").value)}</p>
+      <strong>${escapeHtml(publishDraft.text.slice(0, 120))}${publishDraft.text.length > 120 ? "…" : ""}</strong>
+      ${photosHtml}
+      <dl class="preview-meta">
+        <div><dt>Catégorie</dt><dd>${escapeHtml(cat)}</dd></div>
+        <div><dt>Quartier</dt><dd>${escapeHtml(quartier)}</dd></div>
+        <div><dt>Prix</dt><dd>${escapeHtml(prix)}</dd></div>
+        <div><dt>Type</dt><dd>${escapeHtml(type)}</dd></div>
+        ${resumeHtml}
+      </dl>
     </div>`;
 }
 
@@ -350,10 +614,25 @@ function init() {
   document.getElementById("profileName").textContent = USER.name;
   document.getElementById("profileSince").textContent = USER.since;
   document.getElementById("profileAvatar").textContent = USER.avatar;
+  updateProfileWhatsAppUi();
+
+  const homeInput = document.getElementById("homeSearchInput");
+  const publishText = document.getElementById("publishText");
+  const publishCount = document.getElementById("publishCount");
+  const publishPhotoInput = document.getElementById("publishPhotoInput");
+  const publishResumeInput = document.getElementById("publishResumeInput");
+
+  function updatePublishTextState() {
+    const length = publishText.value.length;
+    publishCount.textContent = `${length}/1000`;
+  }
+
+  publishText.addEventListener("input", updatePublishTextState);
+  updatePublishTextState();
 
   document.getElementById("homeSearchForm").addEventListener("submit", (e) => {
     e.preventDefault();
-    openResults(document.getElementById("homeSearchInput").value);
+    openResults(homeInput.value);
   });
 
   document.getElementById("catSearchForm").addEventListener("submit", (e) => {
@@ -375,10 +654,43 @@ function init() {
   });
 
   document.getElementById("publishNext1").addEventListener("click", () => {
-    publishDraft.text = document.getElementById("publishText").value.trim();
-    if (!publishDraft.text) return;
+    if (!ensureWhatsAppForPublish()) return;
+    publishDraft.text = publishText.value.trim();
+    if (!publishDraft.text) {
+      alert("Décrivez votre annonce avant de continuer.");
+      return;
+    }
     go("publish-2");
     initPublishStep2();
+  });
+
+  document.getElementById("publishAddPhotos").addEventListener("click", () => publishPhotoInput.click());
+  publishPhotoInput.addEventListener("change", () => {
+    if (publishPhotoInput.files?.length) addPublishPhotos(publishPhotoInput.files);
+    publishPhotoInput.value = "";
+  });
+
+  document.getElementById("publishAddResume").addEventListener("click", () => publishResumeInput.click());
+  publishResumeInput.addEventListener("change", () => {
+    const file = publishResumeInput.files?.[0];
+    if (file) {
+      publishDraft.resume = { file };
+      updatePublishResumeLabel();
+    }
+    publishResumeInput.value = "";
+  });
+
+  document.getElementById("pubCategory").addEventListener("change", updatePublishResumeVisibility);
+  document.getElementById("pubType").addEventListener("change", updatePublishResumeVisibility);
+
+  document.getElementById("profileWhatsAppSave").addEventListener("click", () => {
+    const normalized = normalizeWhatsApp(document.getElementById("profileWhatsApp").value.trim());
+    if (!normalized) {
+      alert("Entrez un numéro WhatsApp valide (ex. +243 900 000 000).");
+      return;
+    }
+    setWhatsAppNumber(normalized);
+    updateProfileWhatsAppUi();
   });
 
   document.getElementById("publishNext2").addEventListener("click", () => {
@@ -390,13 +702,55 @@ function init() {
   document.getElementById("publishBack3").addEventListener("click", () => go("publish-2"));
 
   document.getElementById("publishSubmit").addEventListener("click", () => {
+    if (!ensureWhatsAppForPublish()) return;
+
+    const categoryId = document.getElementById("pubCategory").value;
+    const newId = String(Date.now());
+    const images = publishDraft.photos.map((p) => p.previewUrl);
+    LISTINGS.unshift({
+      id: newId,
+      title: publishDraft.text.slice(0, 80),
+      price: document.getElementById("pubPrix").value || "—",
+      location: document.getElementById("pubQuartier").value || "Kinshasa",
+      time: "À l'instant",
+      category: categoryId,
+      intent: document.getElementById("pubType").value,
+      images,
+      resumeUrl: publishDraft.resume ? "#" : null,
+      tags: publishDraft.category?.summary ? [publishDraft.category.summary.slice(0, 40)] : ["Nouveau"],
+      description: publishDraft.text,
+      whatsapp: getWhatsAppNumber(),
+    });
+
+    publishDraft.photos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    publishDraft = {
+      text: "",
+      category: null,
+      quartier: "",
+      prix: "",
+      type: "demande",
+      photos: [],
+      resume: null,
+    };
+    publishText.value = "";
+    updatePublishTextState();
+    renderPublishPhotoGrid();
+    updatePublishResumeLabel();
+    publishResumeInput.value = "";
     alert("Annonce publiée sur Kinshout !");
-    document.getElementById("publishText").value = "";
-    publishDraft.text = "";
     go("home");
   });
 
   document.getElementById("discussSearchInput").addEventListener("input", renderDiscussions);
+
+  document.querySelectorAll("[data-discuss-tab]").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      document
+        .querySelectorAll("[data-discuss-tab]")
+        .forEach((t) => t.classList.toggle("active", t === tab));
+      renderDiscussions();
+    });
+  });
 
   document.getElementById("replyForm").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -428,37 +782,34 @@ function init() {
   });
 
   menuBtn.addEventListener("click", () => (drawer.hidden ? openDrawer() : closeDrawer()));
-  drawerClose.addEventListener("click", closeDrawer);
+  drawerClose.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    closeDrawer();
+  });
   drawerBackdrop.addEventListener("click", closeDrawer);
 
-  document.querySelectorAll("[data-go]").forEach((el) => {
+  drawer.addEventListener("click", (e) => {
+    const link = e.target.closest("[data-go]");
+    if (!link) return;
+    e.preventDefault();
+    closeDrawer();
+    go(link.dataset.go);
+  });
+
+  document.querySelectorAll("[data-go]:not(.drawer-link)").forEach((el) => {
     el.addEventListener("click", (e) => {
       e.preventDefault();
       closeDrawer();
       go(el.dataset.go);
-      if (el.dataset.go === "discussions") renderDiscussions();
-    });
-  });
-
-  document.querySelectorAll(".drawer-link").forEach((el) => {
-    el.addEventListener("click", () => {
-      closeDrawer();
-      go(el.dataset.go);
-      if (el.dataset.go === "discussions") renderDiscussions();
     });
   });
 
   navItems.forEach((item) => {
     item.addEventListener("click", (e) => {
       e.preventDefault();
-      const tab = item.dataset.tab;
-      if (tab === "home") go("home");
-      else if (tab === "search") go("search");
-      else if (tab === "publish") go("publish-1");
-      else if (tab === "discussions") {
-        go("discussions");
-        renderDiscussions();
-      } else if (tab === "account") go("account");
+      const route = TAB_ROUTES[item.dataset.tab];
+      if (route) go(route);
     });
   });
 

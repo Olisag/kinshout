@@ -7,10 +7,13 @@
     <title>Kinshout</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="pages.css" />
     <link rel="stylesheet" href="home.css" />
+    <link rel="stylesheet" href="mockup.css" />
+    <link rel="stylesheet" href="publish.css" />
+    <link rel="stylesheet" href="landing.css" />
   </head>
   <body>
     <div class="app" id="app">
@@ -29,6 +32,7 @@
           <span class="logo-text"><span class="kin">Kin</span><span class="shout">shout</span></span>
         </a>
         <button class="menu-btn" id="menuBtn" type="button" aria-label="Menu"><span></span><span></span><span></span></button>
+        <button class="header-help" id="headerHelp" type="button" aria-label="Aide">?</button>
       </header>
 
       <nav class="drawer" id="drawer" hidden>
@@ -54,9 +58,16 @@
             </p>
           </section>
           <section class="search-section home-search">
-            <form class="search-bar" id="homeSearchForm">
-              <span class="search-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3" stroke-linecap="round"/></svg></span>
-              <input type="search" class="search-input" id="homeSearchInput" placeholder="Que cherchez-vous à Kin aujourd'hui ?" />
+            <form class="search-bar search-bar--mono" id="homeSearchForm">
+              <span class="search-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3" stroke-linecap="round"/></svg></span>
+              <input
+                type="search"
+                class="search-input cli-input"
+                id="homeSearchInput"
+                placeholder="Que cherchez-vous à Kin aujourd'hui ?"
+                spellcheck="false"
+                autocomplete="off"
+              />
               <button type="submit" class="search-submit" aria-label="Rechercher"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3" stroke-linecap="round"/></svg></button>
             </form>
           </section>
@@ -83,20 +94,22 @@
         </div>
 
         <!-- 2. Rechercher (catégories) -->
-        <div id="view-search" class="page" hidden>
+        <div id="view-search" class="page search-page" hidden>
           <h1 class="page-title">Rechercher</h1>
           <form class="search-bar search-bar-compact" id="catSearchForm">
             <span class="search-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg></span>
             <input type="search" class="search-input" id="catSearchInput" placeholder="Que cherchez-vous à Kin aujourd'hui ?" />
-            <button type="submit" class="search-submit"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg></button>
+            <button type="submit" class="search-submit search-submit-plain"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg></button>
           </form>
+          <h2 class="suggestions-title">Suggestions</h2>
           <ul class="category-list" id="categoryList"></ul>
         </div>
 
         <!-- 3. Résultats -->
-        <div id="view-results" class="page" hidden>
+        <div id="view-results" class="page results-page" hidden>
           <div class="results-search-row">
             <form class="search-bar" id="resultsSearchForm" style="flex:1;margin:0">
+              <span class="search-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg></span>
               <input type="search" class="search-input" id="resultsSearchInput" />
               <button type="submit" class="search-submit"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg></button>
             </form>
@@ -130,43 +143,80 @@
             <p class="ad-location" id="adLocation"></p>
             <div class="tag-row" id="adTags"></div>
             <p class="ad-desc" id="adDesc"></p>
+            <p class="ad-resume" id="adResume" hidden></p>
           </div>
           <div class="ad-footer-bar" id="adFooterBar">
-            <button type="button" class="btn-whatsapp" id="adWhatsApp">Contacter sur WhatsApp</button>
-            <button type="button" class="btn-call" id="adCall">Appeler</button>
+            <button type="button" class="btn-whatsapp btn-whatsapp-full" id="adWhatsApp">Contacter sur WhatsApp</button>
           </div>
         </div>
 
         <!-- 5-7. Déposer (3 étapes) -->
-        <div id="view-publish-1" class="page" hidden>
-          <div class="publish-steps"><div class="publish-step-dot active"></div><div class="publish-step-dot"></div><div class="publish-step-dot"></div></div>
-          <h1 class="page-title">Déposer une annonce</h1>
-          <p class="publish-prompt">Décrivez simplement votre besoin ou ce que vous vendez. Notre IA structure l'annonce pour vous.</p>
-          <textarea class="publish-textarea" id="publishText" placeholder="Ex : Je cherche un appartement 2 chambres à Gombe, budget 800 $ par mois…"></textarea>
-          <div class="publish-chips">
-            <button type="button" class="chip-action">📷 Photos</button>
-            <button type="button" class="chip-action">📍 Quartier</button>
-            <button type="button" class="chip-action">💰 Prix</button>
+        <div id="view-publish-1" class="page publish-page" hidden>
+          <div class="publish-steps publish-steps-1" aria-label="Étapes de publication">
+            <div class="publish-step-dot active" data-label="Décrire"></div>
+            <div class="publish-step-dot" data-label="Détails"></div>
+            <div class="publish-step-dot" data-label="Aperçu"></div>
           </div>
+          <section class="publish-panel publish-panel-centered">
+            <h2 class="publish-question">Que souhaitez-vous publier ?</h2>
+            <p class="publish-prompt">Décrivez simplement votre besoin, votre service ou ce que vous vendez.</p>
+            <div class="publish-text-wrap">
+              <textarea class="publish-textarea" id="publishText" maxlength="1000" placeholder="Ex : Je cherche un appartement à Gombe,&#10;2 chambres, salon, parking, budget 500$."></textarea>
+              <span class="publish-count" id="publishCount">0/1000</span>
+            </div>
+            <div class="publish-chips">
+              <input type="file" id="publishPhotoInput" accept="image/jpeg,image/png,image/webp" multiple hidden />
+              <button type="button" class="chip-action chip-blue" id="publishAddPhotos">
+                <span class="chip-icon">▧</span><span>Ajouter des photos</span>
+              </button>
+              <button type="button" class="chip-action chip-green"><span class="chip-icon">⌖</span><span>Ajouter un lieu</span></button>
+              <button type="button" class="chip-action chip-orange"><span class="chip-icon">♡</span><span>Ajouter un prix</span></button>
+            </div>
+            <div class="publish-photo-grid" id="publishPhotoGrid" hidden></div>
+            <p class="publish-hint" id="publishPhotoHint">Photos facultatives · max 10</p>
+          </section>
           <button type="button" class="btn-primary-full" id="publishNext1">Continuer</button>
         </div>
 
-        <div id="view-publish-2" class="page" hidden>
-          <div class="publish-steps"><div class="publish-step-dot done"></div><div class="publish-step-dot active"></div><div class="publish-step-dot"></div></div>
-          <h1 class="page-title">Détails</h1>
-          <div class="ai-hint" id="publishAiHint">⏳ Analyse IA en cours…</div>
-          <div class="form-field"><label class="form-label">Catégorie</label><select class="form-select" id="pubCategory"></select></div>
-          <div class="form-field"><label class="form-label">Quartier</label><input class="form-input" id="pubQuartier" placeholder="Gombe" /></div>
-          <div class="form-field"><label class="form-label">Prix</label><input class="form-input" id="pubPrix" placeholder="800 $" /></div>
-          <div class="form-field"><label class="form-label">Type d'annonce</label><select class="form-select" id="pubType"><option value="demande">Recherche</option><option value="offre">Offre</option></select></div>
-          <button type="button" class="btn-primary-full" id="publishNext2">Aperçu</button>
+        <div id="view-publish-2" class="page publish-page" hidden>
+          <div class="publish-steps publish-steps-2" aria-label="Étapes de publication">
+            <div class="publish-step-dot done" data-label="Décrire"></div>
+            <div class="publish-step-dot active" data-label="Détails"></div>
+            <div class="publish-step-dot" data-label="Aperçu"></div>
+          </div>
+          <h1 class="page-title">Déposer une annonce</h1>
+          <section class="publish-panel">
+            <h2 class="publish-question">Ajoutez quelques détails (facultatif)</h2>
+            <p class="publish-prompt">Plus vous ajoutez de détails, plus votre annonce sera visible.</p>
+            <div class="ai-hint" id="publishAiHint">Analyse IA en cours…</div>
+            <div class="form-field field-category"><label class="form-label">Catégorie</label><select class="form-select" id="pubCategory"></select></div>
+            <div class="form-field field-location"><label class="form-label">Quartier</label><input class="form-input" id="pubQuartier" placeholder="Gombe" /></div>
+            <div class="form-field field-price"><label class="form-label">Prix</label><input class="form-input" id="pubPrix" placeholder="500 $" /></div>
+            <div class="form-field field-type"><label class="form-label">Type d'annonce</label><select class="form-select" id="pubType"><option value="demande">Recherche</option><option value="offre">Offre</option></select></div>
+            <div class="form-field field-resume" id="publishResumeSection" hidden>
+              <label class="form-label">CV / Resume (facultatif)</label>
+              <p class="publish-hint">Pour les annonces emploi où vous vous présentez.</p>
+              <input type="file" id="publishResumeInput" accept=".pdf,.doc,.docx,application/pdf" hidden />
+              <button type="button" class="btn-upload" id="publishAddResume">Joindre un CV</button>
+              <p class="upload-file-name" id="publishResumeName" hidden></p>
+            </div>
+          </section>
+          <button type="button" class="btn-primary-full" id="publishNext2">Continuer</button>
           <button type="button" class="btn-secondary-full" id="publishBack2">Retour</button>
         </div>
 
-        <div id="view-publish-3" class="page" hidden>
-          <div class="publish-steps"><div class="publish-step-dot done"></div><div class="publish-step-dot done"></div><div class="publish-step-dot active"></div></div>
-          <h1 class="page-title">Aperçu</h1>
-          <div class="preview-card" id="publishPreview"></div>
+        <div id="view-publish-3" class="page publish-page" hidden>
+          <div class="publish-steps publish-steps-3" aria-label="Étapes de publication">
+            <div class="publish-step-dot done" data-label="Décrire"></div>
+            <div class="publish-step-dot done" data-label="Détails"></div>
+            <div class="publish-step-dot active" data-label="Aperçu"></div>
+          </div>
+          <h1 class="page-title">Déposer une annonce</h1>
+          <section class="publish-panel">
+            <h2 class="publish-question">Aperçu de votre annonce</h2>
+            <p class="publish-prompt">Vérifiez et publiez.</p>
+            <div class="preview-card" id="publishPreview"></div>
+          </section>
           <button type="button" class="btn-primary-full" id="publishSubmit">Publier maintenant</button>
           <button type="button" class="btn-secondary-full" id="publishBack3">Modifier</button>
         </div>
@@ -204,6 +254,15 @@
             <p class="profile-name" id="profileName">Jonathan M.</p>
             <p class="profile-since" id="profileSince">Membre depuis janv. 2025</p>
           </div>
+          <section class="profile-whatsapp-card" id="profileWhatsAppCard">
+            <h2 class="profile-section-title">Numéro WhatsApp <span class="required-badge">requis</span></h2>
+            <p class="profile-section-desc">Les acheteurs et vendeurs vous contactent uniquement via WhatsApp.</p>
+            <div class="profile-whatsapp-row">
+              <input type="tel" class="form-input" id="profileWhatsApp" placeholder="+243 900 000 000" autocomplete="tel" />
+              <button type="button" class="btn-primary-inline" id="profileWhatsAppSave">Enregistrer</button>
+            </div>
+            <p class="profile-whatsapp-status" id="profileWhatsAppStatus"></p>
+          </section>
           <ul class="menu-list" id="accountMenu">
             <li><button type="button" class="menu-item"><span class="menu-item-icon">📋</span> Mes annonces<span class="menu-item-chevron">›</span></button></li>
             <li><button type="button" class="menu-item"><span class="menu-item-icon">💬</span> Mes discussions<span class="menu-item-chevron">›</span></button></li>

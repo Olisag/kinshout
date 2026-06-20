@@ -63,6 +63,25 @@
   height: 46px;
 }
 
+.search-bar--mono .cli-input {
+  font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  letter-spacing: -0.02em;
+  color: #1f2937;
+  caret-color: var(--orange);
+  -webkit-appearance: none;
+}
+
+.search-bar--mono .cli-input::placeholder {
+  color: #9ca3af;
+  font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+
+.search-bar--mono .cli-input::-webkit-search-cancel-button,
+.search-bar--mono .cli-input::-webkit-search-decoration {
+  display: none;
+}
+
 .home-page .popular {
   margin-bottom: 1.35rem;
 }
