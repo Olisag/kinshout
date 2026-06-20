@@ -38,6 +38,7 @@ const MAX_PUBLISH_PHOTOS = 10;
 
 let searchQuery = "";
 let resultsTab = "all";
+let lastSearchFromApi = null;
 let selectedCategory = null;
 let publishDraft = {
   editingId: null,
@@ -403,10 +404,28 @@ async function loadPopularSearches() {
   }
 }
 
-function trackSearchQuery(query) {
-  const trimmed = query.trim();
-  if (trimmed.length < 2) return;
-  api.search.record(trimmed).catch(() => {});
+function apiDiscussionToDiscussion(d) {
+  return {
+    id: d.id,
+    title: d.title,
+    body: d.body,
+    author: d.author,
+    avatar: d.avatar,
+    replies: d.replies,
+    time: d.time,
+  };
+}
+
+function findListing(id) {
+  const fromApi = lastSearchFromApi?.adverts?.find((ad) => ad.id === id);
+  if (fromApi) return apiAdvertToListing(fromApi);
+  return LISTINGS.find((l) => l.id === id);
+}
+
+function findDiscussion(id) {
+  const fromApi = lastSearchFromApi?.discussions?.find((d) => d.id === id);
+  if (fromApi) return apiDiscussionToDiscussion(fromApi);
+  return DISCUSSIONS.find((d) => d.id === id);
 }
 
 // --- Categories ---
@@ -464,8 +483,12 @@ function renderResults() {
   const empty = document.getElementById("emptyResults");
   document.getElementById("resultsSearchInput").value = searchQuery;
 
-  const listings = filterListings(searchQuery);
-  const discussions = filterDiscussions(searchQuery);
+  const listings = lastSearchFromApi
+    ? lastSearchFromApi.adverts.map(apiAdvertToListing)
+    : filterListings(searchQuery);
+  const discussions = lastSearchFromApi
+    ? lastSearchFromApi.discussions.map(apiDiscussionToDiscussion)
+    : filterDiscussions(searchQuery);
 
   let html = "";
 
@@ -522,16 +545,32 @@ function renderResults() {
   });
 }
 
-function openResults(query) {
+async function fetchAndRenderResults() {
+  const list = document.getElementById("resultsList");
+  const empty = document.getElementById("emptyResults");
+  document.getElementById("resultsSearchInput").value = searchQuery;
+  list.innerHTML = '<p class="profile-whatsapp-status">Recherche…</p>';
+  list.hidden = false;
+  empty.hidden = true;
+
+  try {
+    lastSearchFromApi = await api.search.post(searchQuery, resultsTab);
+    renderResults();
+  } catch {
+    lastSearchFromApi = null;
+    renderResults();
+  }
+}
+
+async function openResults(query) {
   searchQuery = query.trim();
-  trackSearchQuery(searchQuery);
   selectedCategory = null;
   resultsTab = query.toLowerCase().includes("discussion") ? "discussions" : "all";
   document.querySelectorAll("#resultsTabs .tab").forEach((t) => {
     t.classList.toggle("active", t.dataset.tab === resultsTab || (resultsTab === "all" && t.dataset.tab === "all"));
   });
-  renderResults();
   go("results");
+  await fetchAndRenderResults();
 }
 
 function openCategoryResults(categoryId) {
@@ -565,7 +604,7 @@ function showAdPhoto(ad, index) {
 }
 
 function openAd(id) {
-  const ad = LISTINGS.find((l) => l.id === id);
+  const ad = findListing(id);
   if (!ad) return;
   currentListingId = id;
   showAdPhoto(ad, 0);
@@ -631,7 +670,7 @@ function renderDiscussions() {
 }
 
 function openDiscussion(id) {
-  const d = DISCUSSIONS.find((x) => x.id === id);
+  const d = findDiscussion(id);
   if (!d) return;
   currentDiscussionId = id;
   document.getElementById("discussDetailTitle").textContent = d.title;
@@ -999,10 +1038,10 @@ function init() {
   });
 
   document.querySelectorAll("#resultsTabs .tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
+    tab.addEventListener("click", async () => {
       resultsTab = tab.dataset.tab;
       document.querySelectorAll("#resultsTabs .tab").forEach((t) => t.classList.toggle("active", t === tab));
-      renderResults();
+      await fetchAndRenderResults();
     });
   });
 

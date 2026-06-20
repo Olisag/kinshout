@@ -296,8 +296,6 @@ export const api = {
 
     popular: (limit = 10) => request(`/api/search/popular?limit=${limit}`),
 
-    record: (query) => request("/api/search/record", { method: "POST", body: { query } }),
-
   },
 
 
