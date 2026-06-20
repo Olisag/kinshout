@@ -853,6 +853,29 @@
   background: #fff;
 }
 
+.my-advert-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.btn-secondary-inline {
+  padding: 0.65rem 0.85rem;
+  background: #fff;
+  color: var(--navy);
+  border: 1px solid var(--pill-border);
+  border-radius: var(--radius);
+  font-weight: 800;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.btn-secondary-inline:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .my-advert-title {
   font-size: 1rem;
   font-weight: 700;

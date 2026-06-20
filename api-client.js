@@ -283,6 +283,8 @@ export const api = {
 
     update: (id, payload) => request(`/api/adverts/${id}`, { method: "PUT", body: payload, auth: true }),
 
+    remove: (id) => request(`/api/adverts/${id}`, { method: "DELETE", auth: true }),
+
   },
 
 

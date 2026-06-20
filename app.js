@@ -921,7 +921,10 @@ async function renderMyAdverts() {
           <h2 class="my-advert-title">${escapeHtml(ad.title)}</h2>
           <p class="my-advert-meta">${escapeHtml(ad.price || "—")} · ${escapeHtml(ad.location || "Kinshasa")} · ${escapeHtml(ad.time)}</p>
         </div>
-        <button type="button" class="btn-primary-inline my-advert-edit" data-id="${ad.id}">Modifier</button>
+        <div class="my-advert-actions">
+          <button type="button" class="btn-primary-inline my-advert-edit" data-id="${ad.id}">Modifier</button>
+          <button type="button" class="btn-secondary-inline my-advert-delete" data-id="${ad.id}">Supprimer</button>
+        </div>
       </article>`
       )
       .join("");
@@ -930,6 +933,25 @@ async function renderMyAdverts() {
       btn.addEventListener("click", () => {
         const ad = adverts.find((item) => item.id === btn.dataset.id);
         if (ad) startEditAdvert(ad);
+      });
+    });
+
+    list.querySelectorAll(".my-advert-delete").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const ad = adverts.find((item) => item.id === btn.dataset.id);
+        if (!ad) return;
+        if (!confirm(`Supprimer « ${ad.title} » ? Cette action est définitive.`)) return;
+
+        btn.disabled = true;
+        try {
+          await api.adverts.remove(ad.id);
+          const listingIndex = LISTINGS.findIndex((item) => item.id === ad.id);
+          if (listingIndex >= 0) LISTINGS.splice(listingIndex, 1);
+          await renderMyAdverts();
+        } catch (err) {
+          alert(err.message || "Impossible de supprimer cette annonce.");
+          btn.disabled = false;
+        }
       });
     });
   } catch (err) {
