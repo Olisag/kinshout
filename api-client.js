@@ -286,13 +286,13 @@ export const api = {
 
   search: {
 
-    query: (query, tab = "all") =>
+    query: (query, tab = "all", page = 1, pageSize = 20) =>
+      request(
+        `/api/search?q=${encodeURIComponent(query)}&tab=${encodeURIComponent(tab)}&page=${page}&pageSize=${pageSize}`
+      ),
 
-      request(`/api/search?q=${encodeURIComponent(query)}&tab=${encodeURIComponent(tab)}`),
-
-    post: (query, tab = "all") =>
-
-      request("/api/search", { method: "POST", body: { query, tab } }),
+    post: (query, tab = "all", page = 1, pageSize = 20) =>
+      request("/api/search", { method: "POST", body: { query, tab, page, pageSize } }),
 
     popular: (limit = 10) => request(`/api/search/popular?limit=${limit}`),
 

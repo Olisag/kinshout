@@ -38,6 +38,8 @@ const MAX_PUBLISH_PHOTOS = 10;
 
 let searchQuery = "";
 let resultsTab = "all";
+let searchPage = 1;
+const SEARCH_PAGE_SIZE = 20;
 let lastSearchFromApi = null;
 let selectedCategory = null;
 let publishDraft = {
@@ -543,23 +545,69 @@ function renderResults() {
       fav.textContent = fav.classList.contains("active") ? "♥" : "♡";
     });
   });
+
+  updateLoadMoreButton();
 }
 
-async function fetchAndRenderResults() {
+function hasMoreSearchResults() {
+  const pagination = lastSearchFromApi?.pagination;
+  if (!pagination) return false;
+  if (resultsTab === "annonces") return pagination.hasMoreAdverts;
+  if (resultsTab === "discussions") return pagination.hasMoreDiscussions;
+  return pagination.hasMoreAdverts || pagination.hasMoreDiscussions;
+}
+
+function updateLoadMoreButton() {
+  const btn = document.getElementById("resultsLoadMore");
+  if (!btn) return;
+  btn.hidden = !hasMoreSearchResults();
+}
+
+async function fetchAndRenderResults(reset = true) {
   const list = document.getElementById("resultsList");
   const empty = document.getElementById("emptyResults");
+  const loadMore = document.getElementById("resultsLoadMore");
   document.getElementById("resultsSearchInput").value = searchQuery;
-  list.innerHTML = '<p class="profile-whatsapp-status">Recherche…</p>';
-  list.hidden = false;
-  empty.hidden = true;
+
+  if (reset) {
+    searchPage = 1;
+    lastSearchFromApi = null;
+    list.innerHTML = '<p class="profile-whatsapp-status">Recherche…</p>';
+    list.hidden = false;
+    empty.hidden = true;
+    if (loadMore) loadMore.hidden = true;
+  } else if (loadMore) {
+    loadMore.disabled = true;
+    loadMore.textContent = "Chargement…";
+  }
 
   try {
-    lastSearchFromApi = await api.search.post(searchQuery, resultsTab);
+    const result = await api.search.post(searchQuery, resultsTab, searchPage, SEARCH_PAGE_SIZE);
+    if (reset || !lastSearchFromApi) {
+      lastSearchFromApi = result;
+    } else {
+      lastSearchFromApi = {
+        ...result,
+        adverts: [...(lastSearchFromApi.adverts || []), ...(result.adverts || [])],
+        discussions: [...(lastSearchFromApi.discussions || []), ...(result.discussions || [])],
+      };
+    }
     renderResults();
   } catch {
-    lastSearchFromApi = null;
+    if (reset) lastSearchFromApi = null;
     renderResults();
+  } finally {
+    if (loadMore) {
+      loadMore.disabled = false;
+      loadMore.textContent = "Afficher plus";
+    }
   }
+}
+
+async function loadMoreSearchResults() {
+  if (!hasMoreSearchResults()) return;
+  searchPage += 1;
+  await fetchAndRenderResults(false);
 }
 
 async function openResults(query) {
@@ -1041,8 +1089,12 @@ function init() {
     tab.addEventListener("click", async () => {
       resultsTab = tab.dataset.tab;
       document.querySelectorAll("#resultsTabs .tab").forEach((t) => t.classList.toggle("active", t === tab));
-      await fetchAndRenderResults();
+      await fetchAndRenderResults(true);
     });
+  });
+
+  document.getElementById("resultsLoadMore")?.addEventListener("click", () => {
+    loadMoreSearchResults();
   });
 
   document.getElementById("publishNext1").addEventListener("click", () => {
