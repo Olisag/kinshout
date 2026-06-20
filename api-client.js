@@ -332,6 +332,25 @@ export const api = {
 
       request(`/api/discussions/${id}/replies`, { method: "POST", body: { body }, auth: true }),
 
+    update: (id, payload) =>
+      request(`/api/discussions/${id}`, { method: "PUT", body: payload, auth: true }),
+
+    remove: (id) =>
+      request(`/api/discussions/${id}`, { method: "DELETE", auth: true }),
+
+    updateReply: (discussionId, replyId, body) =>
+      request(`/api/discussions/${discussionId}/replies/${replyId}`, {
+        method: "PUT",
+        body: { body },
+        auth: true,
+      }),
+
+    removeReply: (discussionId, replyId) =>
+      request(`/api/discussions/${discussionId}/replies/${replyId}`, {
+        method: "DELETE",
+        auth: true,
+      }),
+
   },
 
 

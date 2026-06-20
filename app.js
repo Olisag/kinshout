@@ -57,6 +57,8 @@ let currentListingId = null;
 let currentDiscussionId = null;
 let currentDiscussionDetail = null;
 let discussionThreadPage = 1;
+let discussionEditing = false;
+let replyEditingId = null;
 const DISCUSSION_THREAD_PAGE_SIZE = 20;
 let currentAdPhotoIndex = 0;
 let authUser = null;
@@ -723,7 +725,21 @@ function renderDiscussions() {
 function openDiscussion(id) {
   currentDiscussionId = id;
   discussionThreadPage = 1;
+  discussionEditing = false;
+  replyEditingId = null;
   loadDiscussionDetail(true).then(() => go("discussion-detail"));
+}
+
+function sameUserId(a, b) {
+  return a && b && String(a).toLowerCase() === String(b).toLowerCase();
+}
+
+function renderDiscussionOwnerActions(kind, id) {
+  return `
+    <div class="thread-owner-actions">
+      <button type="button" class="btn-primary-inline thread-edit-btn" data-kind="${kind}" data-id="${id}">Modifier</button>
+      <button type="button" class="btn-secondary-inline thread-delete-btn" data-kind="${kind}" data-id="${id}">Supprimer</button>
+    </div>`;
 }
 
 function renderDiscussionDetail() {
@@ -731,31 +747,173 @@ function renderDiscussionDetail() {
   if (!d) return;
 
   document.getElementById("discussDetailTitle").textContent = d.title;
-  document.getElementById("discussMainPost").innerHTML = `
-    <div class="thread-author">
-      <span class="avatar">${d.avatar}</span>
-      <div><div class="thread-name">${escapeHtml(d.author)}</div><div class="thread-time">${escapeHtml(d.time)}</div></div>
-    </div>
-    <p class="thread-body">${escapeHtml(d.body)}</p>
-    <div class="thread-actions"><span>👍 J'aime</span><span>↩ Répondre</span><span>↗ Partager</span></div>
-  `;
+
+  const isOwner = sameUserId(authUser?.id, d.authorId);
+  if (discussionEditing && isOwner) {
+    document.getElementById("discussMainPost").innerHTML = `
+      <form class="thread-edit-form" id="discussEditForm">
+        <label class="form-label" for="discussEditTitle">Titre</label>
+        <input type="text" class="form-input" id="discussEditTitle" value="${escapeHtml(d.title)}" maxlength="200" required />
+        <label class="form-label" for="discussEditBody">Message</label>
+        <textarea class="form-textarea" id="discussEditBody" rows="5" required>${escapeHtml(d.body)}</textarea>
+        <div class="thread-owner-actions">
+          <button type="submit" class="btn-primary-inline">Enregistrer</button>
+          <button type="button" class="btn-secondary-inline" id="discussEditCancel">Annuler</button>
+        </div>
+      </form>`;
+  } else {
+    document.getElementById("discussMainPost").innerHTML = `
+      <div class="thread-author">
+        <span class="avatar">${d.avatar}</span>
+        <div><div class="thread-name">${escapeHtml(d.author)}</div><div class="thread-time">${escapeHtml(d.time)}</div></div>
+      </div>
+      <p class="thread-body">${escapeHtml(d.body)}</p>
+      ${isOwner ? renderDiscussionOwnerActions("discussion", d.id) : ""}
+      <div class="thread-actions"><span>👍 J'aime</span><span>↩ Répondre</span><span>↗ Partager</span></div>
+    `;
+  }
 
   const replies = d.thread?.items || [];
   document.getElementById("discussReplies").innerHTML = replies
-    .map(
-      (r) => `
-    <div class="thread-reply">
+    .map((r) => {
+      const replyOwner = sameUserId(authUser?.id, r.authorId);
+      if (replyEditingId === r.id && replyOwner) {
+        return `
+    <div class="thread-reply" data-reply-id="${r.id}">
+      <form class="thread-edit-form thread-reply-edit-form" data-reply-id="${r.id}">
+        <textarea class="form-textarea" rows="3" required>${escapeHtml(r.text)}</textarea>
+        <div class="thread-owner-actions">
+          <button type="submit" class="btn-primary-inline">Enregistrer</button>
+          <button type="button" class="btn-secondary-inline thread-reply-edit-cancel" data-reply-id="${r.id}">Annuler</button>
+        </div>
+      </form>
+    </div>`;
+      }
+
+      return `
+    <div class="thread-reply" data-reply-id="${r.id}">
       <div class="thread-author">
         <span class="avatar">${r.avatar}</span>
         <div><div class="thread-name">${escapeHtml(r.author)}</div><div class="thread-time">${escapeHtml(r.time)}</div></div>
       </div>
       <p class="thread-body">${escapeHtml(r.text)}</p>
-    </div>`
-    )
+      ${replyOwner ? renderDiscussionOwnerActions("reply", r.id) : ""}
+    </div>`;
+    })
     .join("");
 
   const loadMore = document.getElementById("discussThreadLoadMore");
   if (loadMore) loadMore.hidden = !(d.thread?.hasMore);
+
+  wireDiscussionDetailActions();
+}
+
+function wireDiscussionDetailActions() {
+  document.getElementById("discussEditForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!currentDiscussionId) return;
+
+    const title = document.getElementById("discussEditTitle").value.trim();
+    const body = document.getElementById("discussEditBody").value.trim();
+    if (!title || !body) return;
+
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    try {
+      await api.discussions.update(currentDiscussionId, { title, body });
+      discussionEditing = false;
+      await loadDiscussionDetail(true);
+    } catch (err) {
+      alert(err.message || "Impossible de modifier cette discussion.");
+      submitBtn.disabled = false;
+    }
+  });
+
+  document.getElementById("discussEditCancel")?.addEventListener("click", () => {
+    discussionEditing = false;
+    renderDiscussionDetail();
+  });
+
+  document.querySelectorAll(".thread-edit-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.dataset.kind === "discussion") {
+        discussionEditing = true;
+        replyEditingId = null;
+        renderDiscussionDetail();
+        return;
+      }
+
+      replyEditingId = btn.dataset.id;
+      discussionEditing = false;
+      renderDiscussionDetail();
+    });
+  });
+
+  document.querySelectorAll(".thread-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!currentDiscussionId) return;
+
+      if (btn.dataset.kind === "discussion") {
+        const d = currentDiscussionDetail;
+        if (!confirm(`Supprimer « ${d?.title || "cette discussion"} » ? Cette action est définitive.`)) return;
+
+        btn.disabled = true;
+        try {
+          await api.discussions.remove(currentDiscussionId);
+          currentDiscussionId = null;
+          currentDiscussionDetail = null;
+          discussionEditing = false;
+          replyEditingId = null;
+          go("discussions");
+        } catch (err) {
+          alert(err.message || "Impossible de supprimer cette discussion.");
+          btn.disabled = false;
+        }
+        return;
+      }
+
+      if (!confirm("Supprimer cette réponse ? Cette action est définitive.")) return;
+
+      btn.disabled = true;
+      try {
+        await api.discussions.removeReply(currentDiscussionId, btn.dataset.id);
+        replyEditingId = null;
+        await loadDiscussionDetail(true);
+      } catch (err) {
+        alert(err.message || "Impossible de supprimer cette réponse.");
+        btn.disabled = false;
+      }
+    });
+  });
+
+  document.querySelectorAll(".thread-reply-edit-form").forEach((form) => {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!currentDiscussionId) return;
+
+      const replyId = form.dataset.replyId;
+      const body = form.querySelector("textarea").value.trim();
+      if (!body) return;
+
+      const submitBtn = form.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      try {
+        await api.discussions.updateReply(currentDiscussionId, replyId, body);
+        replyEditingId = null;
+        await loadDiscussionDetail(true);
+      } catch (err) {
+        alert(err.message || "Impossible de modifier cette réponse.");
+        submitBtn.disabled = false;
+      }
+    });
+  });
+
+  document.querySelectorAll(".thread-reply-edit-cancel").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      replyEditingId = null;
+      renderDiscussionDetail();
+    });
+  });
 }
 
 async function loadDiscussionDetail(reset = true) {

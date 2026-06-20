@@ -586,7 +586,8 @@
 }
 
 .form-input,
-.form-select {
+.form-select,
+.form-textarea {
   width: 100%;
   padding: 0.75rem 1rem;
   border: 1px solid var(--pill-border);
@@ -595,6 +596,12 @@
   font-size: 0.95rem;
   color: var(--navy);
   background: var(--bg);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 5rem;
+  line-height: 1.45;
 }
 
 .ai-hint {
@@ -765,6 +772,30 @@
   margin-left: 2.5rem;
   padding: 0.75rem 0;
   border-bottom: 1px solid var(--pill-border);
+}
+
+.thread-owner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0.5rem;
+}
+
+.thread-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.thread-edit-form .form-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--navy-muted);
+}
+
+.thread-reply-edit-form {
+  margin-left: -2.5rem;
+  padding-left: 2.5rem;
 }
 
 .reply-bar {
