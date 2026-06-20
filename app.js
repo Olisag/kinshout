@@ -10,7 +10,7 @@ import {
   getCurrent,
 } from "./router.js";
 
-const POPULAR = [
+const POPULAR_FALLBACK = [
   "Appartement à louer à Gombe",
   "Je cherche un chauffeur",
   "iPhone 13 pas cher",
@@ -377,18 +377,36 @@ function ensureWhatsAppForPublish() {
 }
 
 // --- Home pills ---
-function renderHomePills() {
+function renderPopularPills(queries) {
   const el = document.getElementById("homePills");
-  el.innerHTML = POPULAR.map(
-    (q) => `
+  el.innerHTML = queries
+    .map(
+      (q) => `
     <button type="button" class="pill" data-query="${escapeHtml(q)}">
       <span class="pill-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF5500" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg></span>
       ${escapeHtml(q)}
     </button>`
-  ).join("");
+    )
+    .join("");
   el.querySelectorAll(".pill").forEach((p) => {
     p.addEventListener("click", () => openResults(p.dataset.query));
   });
+}
+
+async function loadPopularSearches() {
+  try {
+    const items = await api.search.popular(10);
+    const queries = items.map((item) => item.query).filter(Boolean);
+    renderPopularPills(queries.length ? queries : POPULAR_FALLBACK);
+  } catch {
+    renderPopularPills(POPULAR_FALLBACK);
+  }
+}
+
+function trackSearchQuery(query) {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return;
+  api.search.record(trimmed).catch(() => {});
 }
 
 // --- Categories ---
@@ -506,6 +524,7 @@ function renderResults() {
 
 function openResults(query) {
   searchQuery = query.trim();
+  trackSearchQuery(searchQuery);
   selectedCategory = null;
   resultsTab = query.toLowerCase().includes("discussion") ? "discussions" : "all";
   document.querySelectorAll("#resultsTabs .tab").forEach((t) => {
@@ -945,7 +964,7 @@ function initPublishStep2() {
 }
 
 function init() {
-  renderHomePills();
+  loadPopularSearches();
   renderCategories();
   refreshAccountView();
   initFacebookSdk();
