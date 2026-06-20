@@ -16,6 +16,7 @@ public interface IAuthService
 {
     Task<AuthResponseDto> SignInWithGoogleAsync(string idToken, string clientId, CancellationToken ct = default);
     Task<AuthResponseDto> SignInWithAppleAsync(string idToken, string clientId, CancellationToken ct = default);
+    Task<AuthResponseDto> SignInWithFacebookAsync(string accessToken, string clientId, CancellationToken ct = default);
     Task<UserProfileDto?> GetProfileAsync(Guid userId, CancellationToken ct = default);
     Task<UserProfileDto> UpdateProfileAsync(Guid userId, UpdateProfileRequestDto request, CancellationToken ct = default);
 }
@@ -24,6 +25,7 @@ public class AuthService(
     KinshoutDbContext db,
     IJwtTokenService jwt,
     IOptions<OAuthSettings> oauthOptions,
+    IFacebookAuthValidator facebookAuth,
     ILogger<AuthService> logger) : IAuthService
 {
     private readonly OAuthSettings _oauth = oauthOptions.Value;
@@ -75,6 +77,22 @@ public class AuthService(
             email,
             name,
             null,
+            clientId,
+            ct);
+    }
+
+    public async Task<AuthResponseDto> SignInWithFacebookAsync(
+        string accessToken,
+        string clientId,
+        CancellationToken ct = default)
+    {
+        var profile = await facebookAuth.ValidateAccessTokenAsync(accessToken, ct);
+        return await UpsertExternalLoginAsync(
+            AuthProvider.Facebook,
+            profile.Id,
+            profile.Email ?? $"{profile.Id}@facebook.kinshout",
+            profile.Name,
+            profile.PictureUrl,
             clientId,
             ct);
     }

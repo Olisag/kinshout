@@ -29,8 +29,8 @@ public class AuthController(IAuthService auth, IClientAuthService clientAuth) : 
     {
         try
         {
-            var origin = Request.Headers.Origin.FirstOrDefault()
-                ?? Request.Headers.Referer.FirstOrDefault()?.TrimEnd('/');
+            var origin = OriginMatcher.NormalizeOrigin(Request.Headers.Origin.FirstOrDefault())
+                ?? OriginMatcher.NormalizeOrigin(Request.Headers.Referer.FirstOrDefault());
             return Ok(await clientAuth.AuthenticateAsync(request, origin, ct));
         }
         catch (Exception ex)
@@ -80,6 +80,27 @@ public class AuthController(IAuthService auth, IClientAuthService clientAuth) : 
         {
             var clientId = GetClientId();
             return Ok(await auth.SignInWithAppleAsync(request.IdToken, clientId, ct));
+        }
+        catch (Exception ex)
+        {
+            return Unauthorized(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Sign in an end user with a Facebook access token (layer 2).
+    /// Requires a valid frontend client token in <c>X-Kinshout-Client-Token</c>.
+    /// </summary>
+    [HttpPost("facebook")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<AuthResponseDto>> Facebook([FromBody] FacebookLoginRequestDto request, CancellationToken ct)
+    {
+        try
+        {
+            var clientId = GetClientId();
+            return Ok(await auth.SignInWithFacebookAsync(request.AccessToken, clientId, ct));
         }
         catch (Exception ex)
         {

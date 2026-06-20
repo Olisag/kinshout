@@ -1,4 +1,5 @@
 import { categorizeQuery } from "./categorize-client.js";
+import { api } from "./api-client.js";
 import { CATEGORIES, LISTINGS, DISCUSSIONS, USER } from "./data.js";
 import {
   registerView,
@@ -29,6 +30,10 @@ const drawerClose = document.getElementById("drawerClose");
 const navItems = document.querySelectorAll(".nav-item");
 
 const WHATSAPP_KEY = "kinshout_whatsapp";
+const FACEBOOK_APP_ID =
+  (typeof window !== "undefined" && window.KINSHOUT_FACEBOOK_APP_ID) ||
+  import.meta?.env?.VITE_FACEBOOK_APP_ID ||
+  "";
 const MAX_PUBLISH_PHOTOS = 10;
 
 let searchQuery = "";
@@ -46,6 +51,8 @@ let publishDraft = {
 let currentListingId = null;
 let currentDiscussionId = null;
 let currentAdPhotoIndex = 0;
+let authUser = null;
+let facebookSdkReady = false;
 
 const CATEGORY_QUERIES = {
   immobilier: "Appartement à louer à Gombe",
@@ -122,8 +129,11 @@ function go(view, data) {
   if (view === "publish" || view === "publier" || view === "deposer") {
     view = "publish-1";
   }
-  if (view === "publish-1" && !hasWhatsAppProfile()) {
-    alert("Ajoutez votre numéro WhatsApp dans Mon compte avant de publier.");
+  if (view === "publish-1" && !isSignedIn()) {
+    alert("Connectez-vous avec Facebook pour publier une annonce.");
+    view = "account";
+  } else if (view === "publish-1" && !hasWhatsAppProfile()) {
+    alert("Votre profil doit inclure un numéro WhatsApp valide.");
     view = "account";
   }
   navigate(view, { data });
@@ -134,7 +144,7 @@ function go(view, data) {
     renderDiscussions();
   }
   if (view === "account") {
-    updateProfileWhatsAppUi();
+    refreshAccountView();
   }
 }
 
@@ -149,8 +159,23 @@ function formatPublishedTime(time) {
   return `Publié il y a ${clean}`;
 }
 
+function isSignedIn() {
+  return Boolean(api.auth.getToken());
+}
+
+function profileInitials(name) {
+  return (
+    (name || "?")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || "")
+      .join("") || "?"
+  );
+}
+
 function getWhatsAppNumber() {
-  return localStorage.getItem(WHATSAPP_KEY) || USER.whatsapp || "";
+  return authUser?.whatsAppNumber || localStorage.getItem(WHATSAPP_KEY) || USER.whatsapp || "";
 }
 
 function setWhatsAppNumber(number) {
@@ -167,7 +192,87 @@ function normalizeWhatsApp(number) {
 }
 
 function hasWhatsAppProfile() {
+  if (authUser?.hasWhatsApp) return true;
   return normalizeWhatsApp(getWhatsAppNumber()).length > 0;
+}
+
+function setFacebookLoginStatus(message, kind = "") {
+  const status = document.getElementById("facebookLoginStatus");
+  if (!status) return;
+  status.textContent = message;
+  status.className = `profile-whatsapp-status${kind ? ` is-${kind}` : ""}`;
+}
+
+function initFacebookSdk() {
+  if (!FACEBOOK_APP_ID) return Promise.resolve(false);
+  if (facebookSdkReady && window.FB) return Promise.resolve(true);
+
+  return new Promise((resolve) => {
+    const finish = () => {
+      if (!window.FB) {
+        resolve(false);
+        return;
+      }
+      window.FB.init({
+        appId: FACEBOOK_APP_ID,
+        cookie: true,
+        xfbml: false,
+        version: "v19.0",
+      });
+      facebookSdkReady = true;
+      resolve(true);
+    };
+
+    if (window.FB) {
+      finish();
+      return;
+    }
+
+    window.fbAsyncInit = finish;
+    setTimeout(() => resolve(facebookSdkReady), 3000);
+  });
+}
+
+function loginWithFacebook() {
+  return new Promise((resolve, reject) => {
+    window.FB.login(
+      (response) => {
+        if (response.authResponse?.accessToken) {
+          resolve(response.authResponse.accessToken);
+          return;
+        }
+        reject(new Error("Connexion Facebook annulée."));
+      },
+      { scope: "public_profile,email" }
+    );
+  });
+}
+
+async function refreshAccountView() {
+  const guest = document.getElementById("accountGuest");
+  const signedIn = document.getElementById("accountSignedIn");
+
+  if (!isSignedIn()) {
+    authUser = null;
+    guest.hidden = false;
+    signedIn.hidden = true;
+    setFacebookLoginStatus("");
+    return;
+  }
+
+  try {
+    authUser = await api.auth.me();
+    if (authUser?.whatsAppNumber) setWhatsAppNumber(authUser.whatsAppNumber);
+    guest.hidden = true;
+    signedIn.hidden = false;
+    document.getElementById("profileName").textContent = authUser.displayName;
+    document.getElementById("profileSince").textContent = authUser.memberSince;
+    document.getElementById("profileAvatar").textContent = profileInitials(authUser.displayName);
+    updateProfileWhatsAppUi();
+  } catch {
+    api.auth.clearSession();
+    await refreshAccountView();
+  }
 }
 
 function listingImages(ad) {
@@ -203,8 +308,13 @@ function updateProfileWhatsAppUi() {
 }
 
 function ensureWhatsAppForPublish() {
+  if (!isSignedIn()) {
+    alert("Connectez-vous avec Facebook pour publier.");
+    go("account");
+    return false;
+  }
   if (hasWhatsAppProfile()) return true;
-  alert("Ajoutez votre numéro WhatsApp dans Mon compte avant de publier.");
+  alert("Votre profil doit inclure un numéro WhatsApp valide.");
   go("account");
   return false;
 }
@@ -611,10 +721,8 @@ function initPublishStep2() {
 function init() {
   renderHomePills();
   renderCategories();
-  document.getElementById("profileName").textContent = USER.name;
-  document.getElementById("profileSince").textContent = USER.since;
-  document.getElementById("profileAvatar").textContent = USER.avatar;
-  updateProfileWhatsAppUi();
+  refreshAccountView();
+  initFacebookSdk();
 
   const homeInput = document.getElementById("homeSearchInput");
   const publishText = document.getElementById("publishText");
@@ -683,14 +791,51 @@ function init() {
   document.getElementById("pubCategory").addEventListener("change", updatePublishResumeVisibility);
   document.getElementById("pubType").addEventListener("change", updatePublishResumeVisibility);
 
-  document.getElementById("profileWhatsAppSave").addEventListener("click", () => {
+  document.getElementById("profileWhatsAppSave").addEventListener("click", async () => {
     const normalized = normalizeWhatsApp(document.getElementById("profileWhatsApp").value.trim());
     if (!normalized) {
       alert("Entrez un numéro WhatsApp valide (ex. +243 900 000 000).");
       return;
     }
-    setWhatsAppNumber(normalized);
-    updateProfileWhatsAppUi();
+    try {
+      if (isSignedIn()) {
+        authUser = await api.auth.updateProfile(normalized);
+      }
+      setWhatsAppNumber(normalized);
+      updateProfileWhatsAppUi();
+    } catch (err) {
+      alert(err.message || "Impossible de mettre à jour le profil.");
+    }
+  });
+
+  document.getElementById("facebookLoginBtn").addEventListener("click", async () => {
+    if (!FACEBOOK_APP_ID) {
+      setFacebookLoginStatus("Facebook App ID non configuré (VITE_FACEBOOK_APP_ID).", "warn");
+      return;
+    }
+
+    setFacebookLoginStatus("Connexion…");
+    try {
+      const ready = await initFacebookSdk();
+      if (!ready) throw new Error("Impossible de charger le SDK Facebook.");
+
+      const accessToken = await loginWithFacebook();
+      const response = await api.auth.facebook(accessToken);
+      api.auth.setSession(response);
+      authUser = response.user;
+      if (authUser?.whatsAppNumber) setWhatsAppNumber(authUser.whatsAppNumber);
+      setFacebookLoginStatus("");
+      await refreshAccountView();
+    } catch (err) {
+      setFacebookLoginStatus(err.message || "Connexion Facebook impossible.", "warn");
+    }
+  });
+
+  document.getElementById("accountLogout").addEventListener("click", () => {
+    api.auth.clearSession();
+    api.client.clearToken();
+    authUser = null;
+    refreshAccountView();
   });
 
   document.getElementById("publishNext2").addEventListener("click", () => {

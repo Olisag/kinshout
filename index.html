@@ -249,6 +249,17 @@
 
         <!-- 10. Compte -->
         <div id="view-account" class="page" hidden>
+          <div id="accountGuest" class="account-guest">
+            <h1 class="page-title">Mon compte</h1>
+            <p class="account-guest-lead">Connectez-vous avec Facebook pour publier et gérer vos annonces.</p>
+            <section class="account-auth-card" id="facebookLoginCard">
+              <button type="button" class="btn-facebook btn-facebook-full" id="facebookLoginBtn">
+                Continuer avec Facebook
+              </button>
+              <p class="profile-whatsapp-status" id="facebookLoginStatus"></p>
+            </section>
+          </div>
+          <div id="accountSignedIn" hidden>
           <div class="profile-header">
             <div class="profile-avatar" id="profileAvatar">JM</div>
             <p class="profile-name" id="profileName">Jonathan M.</p>
@@ -271,7 +282,9 @@
             <li><button type="button" class="menu-item"><span class="menu-item-icon">⚙️</span> Paramètres<span class="menu-item-chevron">›</span></button></li>
             <li><button type="button" class="menu-item"><span class="menu-item-icon">ℹ️</span> À propos<span class="menu-item-chevron">›</span></button></li>
             <li><button type="button" class="menu-item"><span class="menu-item-icon">🆘</span> Aide & support<span class="menu-item-chevron">›</span></button></li>
+            <li><button type="button" class="menu-item" id="accountLogout"><span class="menu-item-icon">⎋</span> Se déconnecter<span class="menu-item-chevron">›</span></button></li>
           </ul>
+          </div>
         </div>
       </main>
 
@@ -283,6 +296,7 @@
         <a href="#" class="nav-item" data-tab="account"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-6 7-6s7 2 7 6"/></svg><span>Compte</span></a>
       </nav>
     </div>
+    <script async defer crossorigin="anonymous" src="https://connect.facebook.net/fr_FR/sdk.js"></script>
     <script type="module" src="app.js"></script>
   </body>
 </html>

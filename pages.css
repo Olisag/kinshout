@@ -405,8 +405,95 @@
   color: #027a48;
 }
 
+.btn-facebook {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: #1877f2;
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-facebook-full {
+  width: 100%;
+}
+
+.btn-facebook:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .profile-whatsapp-status.is-warn {
   color: #b54708;
+}
+
+.account-guest {
+  padding: 0 1.25rem 1.5rem;
+}
+
+.account-guest-lead {
+  margin: 0 0 1rem;
+  font-size: 0.88rem;
+  color: var(--navy-muted);
+  line-height: 1.5;
+}
+
+.account-auth-card {
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid var(--pill-border);
+  border-radius: var(--radius);
+}
+
+.account-auth-card .form-label {
+  display: block;
+  margin: 0.75rem 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--navy-muted);
+}
+
+.account-auth-card .form-label:first-child {
+  margin-top: 0;
+}
+
+.account-auth-card .form-input {
+  width: 100%;
+}
+
+.account-auth-card .btn-whatsapp,
+.account-auth-card .btn-primary {
+  margin-top: 0.85rem;
+}
+
+.account-auth-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  color: var(--navy-muted);
+  line-height: 1.45;
+}
+
+.btn-primary-full {
+  width: 100%;
+}
+
+.btn-text-link {
+  display: block;
+  width: 100%;
+  margin-top: 0.65rem;
+  padding: 0.35rem;
+  border: 0;
+  background: none;
+  color: var(--navy-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .app.show-ad-footer .bottom-nav {

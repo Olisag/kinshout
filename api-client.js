@@ -228,6 +228,11 @@ export const api = {
 
   auth: {
 
+    auth: {
+
+    facebook: (accessToken) =>
+      request("/api/auth/facebook", { method: "POST", body: { accessToken } }),
+
     google: (idToken) => request("/api/auth/google", { method: "POST", body: { idToken } }),
 
     apple: (idToken) => request("/api/auth/apple", { method: "POST", body: { idToken } }),
