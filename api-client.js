@@ -402,7 +402,11 @@ export const api = {
 
   categories: {
 
-    list: () => request("/api/categories"),
+    list: (options = {}) => {
+      const { page = 1, pageSize = 20 } = options;
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      return request(`/api/categories?${params}`);
+    },
 
   },
 
@@ -421,7 +425,11 @@ export const api = {
 
     create: (payload) => request("/api/adverts", { method: "POST", body: payload, auth: true }),
 
-    listMine: () => request("/api/adverts/mine", { auth: true }),
+    listMine: (options = {}) => {
+      const { page = 1, pageSize = 20 } = options;
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      return request(`/api/adverts/mine?${params}`, { auth: true });
+    },
 
     update: (id, payload) => request(`/api/adverts/${id}`, { method: "PUT", body: payload, auth: true }),
 
@@ -441,7 +449,8 @@ export const api = {
     post: (query, tab = "all", page = 1, pageSize = 20) =>
       request("/api/search", { method: "POST", body: { query, tab, page, pageSize } }),
 
-    popular: (limit = 10) => request(`/api/search/popular?limit=${limit}`),
+    popular: (page = 1, pageSize = 10) =>
+      request(`/api/search/popular?page=${page}&pageSize=${pageSize}`),
 
   },
 
@@ -458,6 +467,12 @@ export const api = {
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), sort });
       if (q) params.set("q", q);
       return request(`/api/discussions?${params}`);
+    },
+
+    listMine: (options = {}) => {
+      const { page = 1, pageSize = 20, filter = "all" } = options;
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), filter });
+      return request(`/api/discussions/mine?${params}`, { auth: true });
     },
 
     get: (id, options = {}) => {

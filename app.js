@@ -40,6 +40,10 @@ let searchQuery = "";
 let resultsTab = "all";
 let searchPage = 1;
 const SEARCH_PAGE_SIZE = 20;
+let myAdvertsPage = 1;
+const MY_ADVERTS_PAGE_SIZE = 20;
+let myAdvertsHasMore = false;
+let myAdvertsItems = [];
 let lastSearchFromApi = null;
 let selectedCategory = null;
 let publishDraft = {
@@ -403,8 +407,8 @@ function renderPopularPills(queries) {
 
 async function loadPopularSearches() {
   try {
-    const items = await api.search.popular(10);
-    const queries = items.map((item) => item.query).filter(Boolean);
+    const result = await api.search.popular(1, 10);
+    const queries = result.items.map((item) => item.query).filter(Boolean);
     renderPopularPills(queries.length ? queries : POPULAR_FALLBACK);
   } catch {
     renderPopularPills(POPULAR_FALLBACK);
@@ -1057,23 +1061,10 @@ function resetPublishDraft() {
   updatePublishModeUi();
 }
 
-async function renderMyAdverts() {
-  const list = document.getElementById("myAdvertsList");
-  const empty = document.getElementById("myAdvertsEmpty");
-  list.innerHTML = '<p class="profile-whatsapp-status">Chargement…</p>';
-  empty.hidden = true;
-
-  try {
-    const adverts = await api.adverts.listMine();
-    if (!adverts.length) {
-      list.innerHTML = "";
-      empty.hidden = false;
-      return;
-    }
-
-    list.innerHTML = adverts
-      .map(
-        (ad) => `
+function renderMyAdvertsList(adverts) {
+  return adverts
+    .map(
+      (ad) => `
       <article class="my-advert-card">
         <div class="my-advert-body">
           <h2 class="my-advert-title">${escapeHtml(ad.title)}</h2>
@@ -1084,39 +1075,95 @@ async function renderMyAdverts() {
           <button type="button" class="btn-secondary-inline my-advert-delete" data-id="${ad.id}">Supprimer</button>
         </div>
       </article>`
-      )
-      .join("");
+    )
+    .join("");
+}
 
-    list.querySelectorAll(".my-advert-edit").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const ad = adverts.find((item) => item.id === btn.dataset.id);
-        if (ad) startEditAdvert(ad);
-      });
+function wireMyAdvertActions(adverts) {
+  const list = document.getElementById("myAdvertsList");
+  list.querySelectorAll(".my-advert-edit").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ad = adverts.find((item) => item.id === btn.dataset.id);
+      if (ad) startEditAdvert(ad);
+    });
+  });
+
+  list.querySelectorAll(".my-advert-delete").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const ad = adverts.find((item) => item.id === btn.dataset.id);
+      if (!ad) return;
+      if (!confirm(`Supprimer « ${ad.title} » ? Cette action est définitive.`)) return;
+
+      btn.disabled = true;
+      try {
+        await api.adverts.remove(ad.id);
+        const listingIndex = LISTINGS.findIndex((item) => item.id === ad.id);
+        if (listingIndex >= 0) LISTINGS.splice(listingIndex, 1);
+        await fetchMyAdverts(true);
+      } catch (err) {
+        alert(err.message || "Impossible de supprimer cette annonce.");
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+async function fetchMyAdverts(reset = false) {
+  const list = document.getElementById("myAdvertsList");
+  const empty = document.getElementById("myAdvertsEmpty");
+  const loadMore = document.getElementById("myAdvertsLoadMore");
+
+  if (reset) {
+    myAdvertsPage = 1;
+    myAdvertsItems = [];
+    list.innerHTML = '<p class="profile-whatsapp-status">Chargement…</p>';
+    empty.hidden = true;
+    if (loadMore) loadMore.hidden = true;
+  } else if (loadMore) {
+    loadMore.disabled = true;
+    loadMore.textContent = "Chargement…";
+  }
+
+  try {
+    const result = await api.adverts.listMine({
+      page: myAdvertsPage,
+      pageSize: MY_ADVERTS_PAGE_SIZE,
     });
 
-    list.querySelectorAll(".my-advert-delete").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const ad = adverts.find((item) => item.id === btn.dataset.id);
-        if (!ad) return;
-        if (!confirm(`Supprimer « ${ad.title} » ? Cette action est définitive.`)) return;
+    myAdvertsHasMore = result.hasMore;
+    myAdvertsItems = reset ? result.items : [...myAdvertsItems, ...result.items];
 
-        btn.disabled = true;
-        try {
-          await api.adverts.remove(ad.id);
-          const listingIndex = LISTINGS.findIndex((item) => item.id === ad.id);
-          if (listingIndex >= 0) LISTINGS.splice(listingIndex, 1);
-          await renderMyAdverts();
-        } catch (err) {
-          alert(err.message || "Impossible de supprimer cette annonce.");
-          btn.disabled = false;
-        }
-      });
-    });
+    if (!myAdvertsItems.length) {
+      list.innerHTML = "";
+      empty.hidden = false;
+      if (loadMore) loadMore.hidden = true;
+      return;
+    }
+
+    list.innerHTML = renderMyAdvertsList(myAdvertsItems);
+    wireMyAdvertActions(myAdvertsItems);
+    empty.hidden = true;
+    if (loadMore) {
+      loadMore.hidden = !myAdvertsHasMore;
+      loadMore.disabled = false;
+      loadMore.textContent = "Afficher plus";
+    }
   } catch (err) {
     list.innerHTML = "";
     empty.textContent = err.message || "Impossible de charger vos annonces.";
     empty.hidden = false;
+    if (loadMore) loadMore.hidden = true;
   }
+}
+
+async function loadMoreMyAdverts() {
+  if (!myAdvertsHasMore) return;
+  myAdvertsPage += 1;
+  await fetchMyAdverts(false);
+}
+
+async function renderMyAdverts() {
+  await fetchMyAdverts(true);
 }
 
 function startEditAdvert(ad) {
@@ -1354,6 +1401,10 @@ function init() {
 
   document.getElementById("resultsLoadMore")?.addEventListener("click", () => {
     loadMoreSearchResults();
+  });
+
+  document.getElementById("myAdvertsLoadMore")?.addEventListener("click", () => {
+    loadMoreMyAdverts();
   });
 
   document.getElementById("publishNext1").addEventListener("click", () => {
