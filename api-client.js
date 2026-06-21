@@ -164,7 +164,7 @@ async function request(path, { method = "GET", body, auth = false } = {}) {
 
 
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  let res = await fetch(`${API_BASE}${path}`, {
 
     method,
 
@@ -182,7 +182,39 @@ async function request(path, { method = "GET", body, auth = false } = {}) {
 
     await ensureClientAuth();
 
-    return request(path, { method, body, auth });
+    const retryHeaders = { "Content-Type": "application/json" };
+
+    const retryClientToken = getClientToken();
+
+    if (retryClientToken) retryHeaders["X-Kinshout-Client-Token"] = retryClientToken;
+
+    if (auth) {
+
+      const retryUserToken = getUserToken();
+
+      if (retryUserToken) retryHeaders.Authorization = `Bearer ${retryUserToken}`;
+
+    }
+
+    res = await fetch(`${API_BASE}${path}`, {
+
+      method,
+
+      headers: retryHeaders,
+
+      body: body ? JSON.stringify(body) : undefined,
+
+    });
+
+  }
+
+
+
+  if (res.status === 401 && auth) {
+
+    setUserToken(null);
+
+    throw new Error("Session expirée. Reconnectez-vous et réessayez.");
 
   }
 
@@ -199,6 +231,116 @@ async function request(path, { method = "GET", body, auth = false } = {}) {
 
 
   if (res.status === 204) return null;
+
+  return res.json();
+
+}
+
+
+
+async function uploadRequest(path, formData) {
+
+  await ensureClientAuth();
+
+  const userToken = getUserToken();
+
+  if (!userToken) {
+
+    throw new Error("Connectez-vous pour téléverser des fichiers.");
+
+  }
+
+
+
+  function attachClientTokenToForm() {
+
+    const clientToken = getClientToken();
+
+    if (!clientToken) return null;
+
+    if (formData.has("x_kinshout_client_token")) {
+
+      formData.delete("x_kinshout_client_token");
+
+    }
+
+    // Azure IIS can drop X-Kinshout-Client-Token on multipart when Authorization is set.
+
+    formData.append("x_kinshout_client_token", clientToken);
+
+    return clientToken;
+
+  }
+
+
+
+  attachClientTokenToForm();
+
+
+
+  const send = () => {
+
+    const headers = {};
+
+    const clientToken = getClientToken();
+
+    if (clientToken) headers["X-Kinshout-Client-Token"] = clientToken;
+
+    headers.Authorization = `Bearer ${userToken}`;
+
+    return fetch(`${API_BASE}${path}`, { method: "POST", headers, body: formData });
+
+  };
+
+
+
+  let res = await send();
+
+
+
+  if (res.status === 401) {
+
+    const err = await res.clone().json().catch(() => ({}));
+
+    const msg = err.error || "";
+
+    const isClientError = msg.toLowerCase().includes("client token");
+
+    if (isClientError && getClientToken()) {
+
+      setClientToken(null);
+
+      await ensureClientAuth();
+
+      attachClientTokenToForm();
+
+      res = await send();
+
+    }
+
+  }
+
+
+
+  if (res.status === 401) {
+
+    setUserToken(null);
+
+    throw new Error("Session expirée. Reconnectez-vous et réessayez.");
+
+  }
+
+
+
+  if (!res.ok) {
+
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+
+    throw new Error(err.error || `HTTP ${res.status}`);
+
+  }
+
+
 
   return res.json();
 
@@ -358,38 +500,16 @@ export const api = {
   uploads: {
 
     images: async (files) => {
-      await ensureClientAuth();
       const form = new FormData();
       Array.from(files).forEach((file) => form.append("files", file));
-      const headers = {};
-      const clientToken = getClientToken();
-      if (clientToken) headers["X-Kinshout-Client-Token"] = clientToken;
-      const userToken = getUserToken();
-      if (userToken) headers.Authorization = `Bearer ${userToken}`;
-      const res = await fetch(`${API_BASE}/api/uploads/images`, { method: "POST", headers, body: form });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: res.statusText }));
-        throw new Error(err.error || `HTTP ${res.status}`);
-      }
-      const data = await res.json();
+      const data = await uploadRequest("/api/uploads/images", form);
       return data.urls.map((url) => (url.startsWith("http") ? url : `${API_BASE}${url}`));
     },
 
     resume: async (file) => {
-      await ensureClientAuth();
       const form = new FormData();
       form.append("file", file);
-      const headers = {};
-      const clientToken = getClientToken();
-      if (clientToken) headers["X-Kinshout-Client-Token"] = clientToken;
-      const userToken = getUserToken();
-      if (userToken) headers.Authorization = `Bearer ${userToken}`;
-      const res = await fetch(`${API_BASE}/api/uploads/resume`, { method: "POST", headers, body: form });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: res.statusText }));
-        throw new Error(err.error || `HTTP ${res.status}`);
-      }
-      const data = await res.json();
+      const data = await uploadRequest("/api/uploads/resume", form);
       const url = data.urls[0];
       return url.startsWith("http") ? url : `${API_BASE}${url}`;
     },
