@@ -415,9 +415,10 @@ export const api = {
   adverts: {
 
     list: (options = {}) => {
-      const { categoryId, page = 1, pageSize = 20, sort = "recent" } = options;
+      const { categoryId, page = 1, pageSize = 20, sort = "recent", intent } = options;
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), sort });
       if (categoryId) params.set("categoryId", categoryId);
+      if (intent) params.set("intent", intent);
       return request(`/api/adverts?${params}`);
     },
 
