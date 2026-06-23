@@ -382,6 +382,11 @@ export const api = {
     updateProfile: (whatsappNumber) =>
       request("/api/auth/me", { method: "PATCH", body: { whatsAppNumber: whatsappNumber }, auth: true }),
 
+    getDisplayPreference: () => request("/api/auth/me/display-preference", { auth: true }),
+
+    updateDisplayPreference: (mode) =>
+      request("/api/auth/me/display-preference", { method: "PUT", body: { mode }, auth: true }),
+
     setSession({ token }) {
 
       setUserToken(token);

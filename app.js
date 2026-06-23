@@ -1,6 +1,7 @@
 import { categorizeQuery } from "./categorize-client.js";
 import { api } from "./api-client.js";
 import { CATEGORIES, LISTINGS, DISCUSSIONS, USER } from "./data.js";
+import { applyDisplayMode, getStoredDisplayMode, initDisplayModeFromStorage } from "./theme.js";
 import {
   registerView,
   navigate,
@@ -111,6 +112,7 @@ const BACK_VIEWS = new Set([
   "discussion-detail",
   "my-adverts",
   "saved-adverts",
+  "settings",
 ]);
 
 // Register views
@@ -127,6 +129,7 @@ const BACK_VIEWS = new Set([
   "account",
   "my-adverts",
   "saved-adverts",
+  "settings",
 ].forEach((name) => {
   registerView(name, document.getElementById(`view-${name}`));
 });
@@ -150,6 +153,7 @@ function updateHeader(view) {
   const isPublish = view.startsWith("publish-");
   appHeader.classList.toggle("header-back-only", showBack);
   app.classList.toggle("show-ad-footer", view === "ad-detail");
+  app.classList.toggle("hide-header", view === "ad-detail");
   app.classList.toggle("is-publish", isPublish);
 }
 
@@ -176,6 +180,9 @@ function go(view, data) {
   }
   if (view === "account") {
     refreshAccountView();
+  }
+  if (view === "settings") {
+    renderSettingsView();
   }
   if (view === "my-adverts") {
     if (!isSignedIn()) {
@@ -304,6 +311,44 @@ function loginWithFacebook() {
   });
 }
 
+function updateDisplayModePicker(mode) {
+  document.querySelectorAll("#displayModePicker .display-mode-option").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.mode === mode);
+  });
+}
+
+function renderSettingsView() {
+  updateDisplayModePicker(getStoredDisplayMode());
+}
+
+async function setDisplayMode(mode) {
+  const normalized = applyDisplayMode(mode);
+  updateDisplayModePicker(normalized);
+  if (!isSignedIn()) return normalized;
+
+  try {
+    const result = await api.auth.updateDisplayPreference(normalized);
+    const saved = result?.mode === "sombre" ? "sombre" : "clair";
+    applyDisplayMode(saved);
+    updateDisplayModePicker(saved);
+    if (authUser) authUser.displayPreference = saved;
+    return saved;
+  } catch (err) {
+    alert(err.message || "Impossible d'enregistrer le mode d'affichage.");
+    return normalized;
+  }
+}
+
+async function syncDisplayPreferenceFromApi() {
+  if (!isSignedIn()) return;
+  try {
+    const result = await api.auth.getDisplayPreference();
+    if (result?.mode) applyDisplayMode(result.mode);
+  } catch {
+    // keep local preference
+  }
+}
+
 async function refreshAccountView() {
   const guest = document.getElementById("accountGuest");
   const signedIn = document.getElementById("accountSignedIn");
@@ -320,6 +365,7 @@ async function refreshAccountView() {
   try {
     authUser = await api.auth.me();
     if (authUser?.whatsAppNumber) setWhatsAppNumber(authUser.whatsAppNumber);
+    if (authUser?.displayPreference) applyDisplayMode(authUser.displayPreference);
     guest.hidden = true;
     signedIn.hidden = false;
     document.getElementById("profileName").textContent = authUser.displayName;
@@ -1900,6 +1946,16 @@ function init() {
     go("saved-adverts");
   });
 
+  document.getElementById("accountSettings").addEventListener("click", () => {
+    go("settings");
+  });
+
+  document.querySelectorAll("#displayModePicker .display-mode-option").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setDisplayMode(btn.dataset.mode);
+    });
+  });
+
   document.getElementById("adFavBtn").addEventListener("click", (e) => {
     e.stopPropagation();
     if (currentListingId) toggleSavedAdvert(currentListingId, e.currentTarget);
@@ -1931,6 +1987,7 @@ function init() {
       api.auth.setSession(response);
       authUser = response.user;
       if (authUser?.whatsAppNumber) setWhatsAppNumber(authUser.whatsAppNumber);
+      if (authUser?.displayPreference) applyDisplayMode(authUser.displayPreference);
       setFacebookLoginStatus("");
       await refreshAccountView();
       await refreshSavedAdvertIds();
@@ -2052,6 +2109,8 @@ function init() {
   });
 
   const q = new URLSearchParams(location.search).get("q");
+  initDisplayModeFromStorage();
+  if (isSignedIn()) syncDisplayPreferenceFromApi();
   if (q) openResults(q);
   else handleDeepLink();
 }

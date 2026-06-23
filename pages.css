@@ -293,7 +293,6 @@
 
 /* Ad detail */
 .ad-detail-page {
-  margin: 0 -1.25rem;
   padding-bottom: 5rem;
 }
 
@@ -314,6 +313,7 @@
   top: 0;
   left: 0;
   right: 0;
+  z-index: 60;
   display: flex;
   justify-content: space-between;
   padding: 0.75rem 1rem;
@@ -329,12 +329,19 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.95);
+  background: rgba(255, 255, 255, 0.95);
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: var(--shadow-sm);
   color: var(--navy);
+}
+
+.ad-gallery-top .icon-btn-round {
+  background: rgba(8, 15, 51, 0.55);
+  color: #fff;
+  font-size: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .ad-counter {
@@ -595,6 +602,10 @@
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+.app.hide-header .header {
+  display: none;
 }
 
 .app.show-ad-footer .bottom-nav {
@@ -1132,4 +1143,37 @@
   text-align: center;
   padding: 2rem;
   color: var(--navy-muted);
+}
+
+.settings-section {
+  margin-top: 1.5rem;
+}
+
+.display-mode-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.display-mode-option {
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--pill-border);
+  background: var(--surface);
+  color: var(--navy);
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.display-mode-option.active {
+  border-color: var(--orange);
+  background: var(--peach);
+  color: var(--orange);
+}
+
+html[data-theme="sombre"] .display-mode-option.active {
+  background: #2a1f18;
 }

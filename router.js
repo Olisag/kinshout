@@ -88,6 +88,7 @@ export function navTabForView(view) {
     account: "account",
     "my-adverts": "account",
     "saved-adverts": "account",
+    settings: "account",
     categorize: "search",
   };
   return map[view] || "home";
