@@ -76,6 +76,20 @@ export const LISTINGS = [
     whatsapp: "+243 900 000 006",
   },
   {
+    id: "8",
+    title: "Je cherche un appartement 2 chambres à Gombe",
+    price: "Budget 600 $ / mois",
+    location: "Gombe",
+    time: "1h",
+    category: "immobilier",
+    intent: "demande",
+    images: [],
+    tags: ["2 chambres", "Parking", "Sécurité"],
+    description:
+      "Famille cherche appartement lumineux à Gombe, 2 chambres minimum, parking souhaité. Disponible dès juillet.",
+    whatsapp: "+243 900 000 008",
+  },
+  {
     id: "4",
     title: "iPhone 13 Pro — état neuf",
     price: "650 $",

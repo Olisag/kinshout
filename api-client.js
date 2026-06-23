@@ -436,6 +436,18 @@ export const api = {
 
     remove: (id) => request(`/api/adverts/${id}`, { method: "DELETE", auth: true }),
 
+    listSaved: (options = {}) => {
+      const { page = 1, pageSize = 20 } = options;
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      return request(`/api/adverts/saved?${params}`, { auth: true });
+    },
+
+    listSavedIds: () => request("/api/adverts/saved/ids", { auth: true }),
+
+    save: (id) => request(`/api/adverts/${id}/save`, { method: "POST", auth: true }),
+
+    unsave: (id) => request(`/api/adverts/${id}/save`, { method: "DELETE", auth: true }),
+
   },
 
 

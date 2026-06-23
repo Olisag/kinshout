@@ -120,6 +120,12 @@
             <button type="button" class="tab" data-tab="annonces">Annonces</button>
             <button type="button" class="tab" data-tab="discussions">Discussions</button>
           </div>
+          <div class="intent-filter intent-filter--segmented" id="resultsIntentFilter" hidden>
+            <div class="intent-filter-chips" id="resultsIntentChips" role="tablist" aria-label="Type d'annonce">
+              <button type="button" class="intent-chip intent-chip-offre active" data-intent="offre" role="tab" aria-selected="true">Offres</button>
+              <button type="button" class="intent-chip intent-chip-demande" data-intent="demande" role="tab" aria-selected="false">Demandes</button>
+            </div>
+          </div>
           <div id="resultsList" class="listing-cards"></div>
           <button type="button" class="btn-secondary-full" id="resultsLoadMore" hidden>Afficher plus</button>
           <p class="empty-results" id="emptyResults" hidden>Aucun résultat pour cette recherche.</p>
@@ -132,8 +138,8 @@
             <div class="ad-gallery-top">
               <button type="button" class="icon-btn-round" id="adBackBtn">←</button>
               <div class="ad-gallery-actions">
-                <button type="button" class="icon-btn-round" id="adFavBtn">♡</button>
-                <button type="button" class="icon-btn-round">↗</button>
+                <button type="button" class="icon-btn-round" id="adFavBtn" aria-label="Sauvegarder">♡</button>
+                <button type="button" class="icon-btn-round" id="adShareBtn" aria-label="Partager">↗</button>
               </div>
               <span class="ad-counter" id="adCounter">1/8</span>
             </div>
@@ -258,6 +264,14 @@
           <p class="empty-state" id="myAdvertsEmpty" hidden>Aucune annonce pour le moment.</p>
         </div>
 
+        <div id="view-saved-adverts" class="page" hidden>
+          <h1 class="page-title">Annonces sauvegardées</h1>
+          <p class="page-lead">Retrouvez les annonces que vous avez mises en favori.</p>
+          <div id="savedAdvertsList" class="listing-cards"></div>
+          <button type="button" class="btn-secondary-full" id="savedAdvertsLoadMore" hidden>Afficher plus</button>
+          <p class="empty-state" id="savedAdvertsEmpty" hidden>Aucune annonce sauvegardée.</p>
+        </div>
+
         <div id="view-account" class="page" hidden>
           <div id="accountGuest" class="account-guest">
             <h1 class="page-title">Mon compte</h1>
@@ -288,7 +302,7 @@
             <li><button type="button" class="menu-item" id="accountMyAdverts"><span class="menu-item-icon">📋</span> Mes annonces<span class="menu-item-chevron">›</span></button></li>
             <li><button type="button" class="menu-item"><span class="menu-item-icon">💬</span> Mes discussions<span class="menu-item-chevron">›</span></button></li>
             <li><button type="button" class="menu-item"><span class="menu-item-icon">✉️</span> Messages<span class="menu-item-chevron">›</span></button></li>
-            <li><button type="button" class="menu-item"><span class="menu-item-icon">♡</span> Annonces sauvegardées<span class="menu-item-chevron">›</span></button></li>
+            <li><button type="button" class="menu-item" id="accountSavedAdverts"><span class="menu-item-icon">♡</span> Annonces sauvegardées<span class="menu-item-chevron">›</span></button></li>
             <li><button type="button" class="menu-item"><span class="menu-item-icon">⚙️</span> Paramètres<span class="menu-item-chevron">›</span></button></li>
             <li><button type="button" class="menu-item"><span class="menu-item-icon">ℹ️</span> À propos<span class="menu-item-chevron">›</span></button></li>
             <li><button type="button" class="menu-item"><span class="menu-item-icon">🆘</span> Aide & support<span class="menu-item-chevron">›</span></button></li>
@@ -307,6 +321,6 @@
       </nav>
     </div>
     <script async defer crossorigin="anonymous" src="https://connect.facebook.net/fr_FR/sdk.js"></script>
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=7"></script>
   </body>
 </html>

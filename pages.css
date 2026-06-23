@@ -120,6 +120,107 @@
   border-bottom-color: var(--orange);
 }
 
+.intent-filter {
+  margin-bottom: 1rem;
+}
+
+.intent-filter[hidden] {
+  display: none !important;
+}
+
+.intent-filter-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--navy-muted);
+  margin-bottom: 0.55rem;
+}
+
+.intent-filter-chips {
+  display: flex;
+  gap: 0;
+}
+
+.intent-filter--segmented .intent-filter-chips {
+  width: 100%;
+  padding: 0.2rem;
+  border: 1px solid var(--pill-border);
+  border-radius: 12px;
+  background: #f4f6fa;
+}
+
+.intent-filter--segmented .intent-chip {
+  flex: 1;
+  text-align: center;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
+}
+
+.intent-filter--segmented .intent-chip.active {
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(16, 29, 52, 0.08);
+}
+
+.intent-chip {
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.42rem 0.85rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--pill-border);
+  background: var(--bg);
+  color: var(--navy-muted);
+  cursor: pointer;
+}
+
+.intent-chip.active {
+  color: var(--navy);
+  border-color: #d7dde8;
+  background: #f4f6fa;
+}
+
+.intent-chip.intent-chip-demande.active {
+  background: #e8f0ff;
+  border-color: #c5d8f5;
+  color: #1a4a7a;
+}
+
+.intent-chip.intent-chip-offre.active {
+  background: #e8f5ee;
+  border-color: #b8dfc8;
+  color: #2d6a4f;
+}
+
+.intent-filter--highlight {
+  box-shadow: 0 0 0 2px rgba(255, 85, 0, 0.35);
+}
+
+.listing-body .intent-pill {
+  margin-bottom: 0.35rem;
+}
+
+.listing-thumb--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.45rem;
+  background: #f4f6fa;
+  border: 1px solid var(--pill-border);
+  border-radius: var(--radius);
+  width: 102px;
+  height: 76px;
+  flex-shrink: 0;
+}
+
+.listing-thumb--placeholder.listing-thumb--demande {
+  background: #e8f0ff;
+  border-color: #c5d8f5;
+}
+
 .listing-cards {
   display: flex;
   flex-direction: column;
@@ -766,6 +867,23 @@
   font-size: 0.8rem;
   color: var(--navy-muted);
   font-weight: 600;
+}
+
+.thread-action-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.thread-action-btn:hover {
+  color: var(--navy);
+}
+
+.icon-btn-round.active {
+  color: #e25555;
 }
 
 .thread-reply {

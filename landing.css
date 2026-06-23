@@ -1,10 +1,14 @@
 /* Final Accueil landing screen from the provided reference. */
 
-.home-page {
+.home-page:not([hidden]) {
   display: block !important;
   min-height: auto !important;
   margin: 0 !important;
   width: 100% !important;
+}
+
+.home-page[hidden] {
+  display: none !important;
 }
 
 .home-page.view-active {
@@ -347,6 +351,32 @@
 .results-page .tab.active {
   color: #ff4d12 !important;
   border-bottom-color: #ff4d12 !important;
+}
+
+.results-page .intent-filter--segmented {
+  margin-bottom: 1rem !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.results-page .intent-filter--segmented .intent-chip {
+  font-size: 0.72rem !important;
+  font-weight: 800 !important;
+}
+
+.results-page .intent-filter--segmented .intent-chip-offre.active {
+  color: #2d6a4f !important;
+}
+
+.results-page .intent-filter--segmented .intent-chip-demande.active {
+  color: #1a4a7a !important;
+}
+
+.results-page .listing-body .intent-pill {
+  font-size: 0.52rem !important;
+  padding: 0.18rem 0.45rem !important;
+  margin-bottom: 0.28rem !important;
 }
 
 .results-page .listing-cards {

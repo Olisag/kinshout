@@ -52,6 +52,12 @@ class KinshoutHandler(SimpleHTTPRequestHandler):
             return
         super().do_OPTIONS()
 
+    def end_headers(self):
+        path = self.path.split("?", 1)[0]
+        if path.endswith((".html", ".js", ".css")):
+            self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def log_message(self, format, *args):
         if "/api/" in (args[0] if args else ""):
             super().log_message(format, *args)

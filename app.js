@@ -38,8 +38,13 @@ const MAX_PUBLISH_PHOTOS = 10;
 
 let searchQuery = "";
 let resultsTab = "all";
+let intentFilter = "offre";
 let searchPage = 1;
 const SEARCH_PAGE_SIZE = 20;
+let categoryAdvertsPage = 1;
+const CATEGORY_ADVERTS_PAGE_SIZE = 20;
+let categorySlugToId = new Map();
+let lastCategoryAdverts = null;
 let myAdvertsPage = 1;
 const MY_ADVERTS_PAGE_SIZE = 20;
 let myAdvertsHasMore = false;
@@ -67,6 +72,11 @@ const DISCUSSION_THREAD_PAGE_SIZE = 20;
 let currentAdPhotoIndex = 0;
 let authUser = null;
 let facebookSdkReady = false;
+let savedAdvertIds = new Set();
+let savedAdvertsPage = 1;
+const SAVED_ADVERTS_PAGE_SIZE = 20;
+let savedAdvertsHasMore = false;
+let savedAdvertsItems = [];
 
 const CATEGORY_QUERIES = {
   immobilier: "Appartement à louer à Gombe",
@@ -100,6 +110,7 @@ const BACK_VIEWS = new Set([
   "publish-3",
   "discussion-detail",
   "my-adverts",
+  "saved-adverts",
 ]);
 
 // Register views
@@ -115,6 +126,7 @@ const BACK_VIEWS = new Set([
   "discussion-detail",
   "account",
   "my-adverts",
+  "saved-adverts",
 ].forEach((name) => {
   registerView(name, document.getElementById(`view-${name}`));
 });
@@ -159,6 +171,9 @@ function go(view, data) {
   if (view === "discussions") {
     renderDiscussions();
   }
+  if (view === "results") {
+    updateIntentFilterVisibility();
+  }
   if (view === "account") {
     refreshAccountView();
   }
@@ -172,6 +187,17 @@ function go(view, data) {
       return;
     }
     renderMyAdverts();
+  }
+  if (view === "saved-adverts") {
+    if (!isSignedIn()) {
+      alert("Connectez-vous pour voir vos annonces sauvegardées.");
+      navigate("account", { replace: true });
+      setNavTab("account", navItems);
+      updateHeader("account");
+      refreshAccountView();
+      return;
+    }
+    renderSavedAdverts();
   }
   if (view.startsWith("publish-")) {
     updatePublishModeUi();
@@ -284,6 +310,7 @@ async function refreshAccountView() {
 
   if (!isSignedIn()) {
     authUser = null;
+    savedAdvertIds = new Set();
     guest.hidden = false;
     signedIn.hidden = true;
     setFacebookLoginStatus("");
@@ -299,9 +326,148 @@ async function refreshAccountView() {
     document.getElementById("profileSince").textContent = authUser.memberSince;
     document.getElementById("profileAvatar").textContent = profileInitials(authUser.displayName);
     updateProfileWhatsAppUi();
+    await refreshSavedAdvertIds();
   } catch {
     api.auth.clearSession();
+    savedAdvertIds = new Set();
     await refreshAccountView();
+  }
+}
+
+function canPersistSavedAdvert(id) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(id));
+}
+
+function isAdvertSaved(id) {
+  return savedAdvertIds.has(String(id));
+}
+
+function updateFavButton(btn, advertId) {
+  if (!btn) return;
+  const active = isAdvertSaved(advertId);
+  btn.classList.toggle("active", active);
+  btn.textContent = active ? "♥" : "♡";
+  btn.setAttribute("aria-pressed", active ? "true" : "false");
+}
+
+async function refreshSavedAdvertIds() {
+  if (!isSignedIn()) {
+    savedAdvertIds = new Set();
+    return;
+  }
+  try {
+    const ids = await api.adverts.listSavedIds();
+    savedAdvertIds = new Set(ids.map(String));
+  } catch {
+    savedAdvertIds = new Set();
+  }
+}
+
+function listingFavHtml(advertId) {
+  const active = isAdvertSaved(advertId);
+  return `<span class="listing-fav${active ? " active" : ""}" data-advert-id="${escapeHtml(String(advertId))}" aria-label="Sauvegarder" aria-pressed="${active ? "true" : "false"}">${active ? "♥" : "♡"}</span>`;
+}
+
+function wireListingFavButtons(container) {
+  container.querySelectorAll(".listing-fav[data-advert-id]").forEach((fav) => {
+    fav.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleSavedAdvert(fav.dataset.advertId, fav);
+    });
+  });
+}
+
+async function toggleSavedAdvert(advertId, btn) {
+  if (!isSignedIn()) {
+    alert("Connectez-vous pour sauvegarder une annonce.");
+    go("account");
+    return;
+  }
+
+  const id = String(advertId);
+  const wasSaved = isAdvertSaved(id);
+  const persist = canPersistSavedAdvert(id);
+  if (btn) btn.disabled = true;
+
+  try {
+    if (persist) {
+      if (wasSaved) await api.adverts.unsave(id);
+      else await api.adverts.save(id);
+    }
+
+    if (wasSaved) savedAdvertIds.delete(id);
+    else savedAdvertIds.add(id);
+
+    document.querySelectorAll(`.listing-fav[data-advert-id="${CSS.escape(id)}"]`).forEach((el) => {
+      updateFavButton(el, id);
+    });
+    updateFavButton(document.getElementById("adFavBtn"), id);
+
+    if (getCurrent() === "saved-adverts" && wasSaved && persist) {
+      await fetchSavedAdverts(true);
+    }
+  } catch (err) {
+    alert(err.message || "Impossible de mettre à jour.");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function shareUrl(path) {
+  return `${window.location.origin}${window.location.pathname}${path}`;
+}
+
+function advertShareUrl(id) {
+  return shareUrl(`#ad/${id}`);
+}
+
+function discussionShareUrl(id) {
+  return shareUrl(`#discussion/${id}`);
+}
+
+async function shareContent({ title, text, url }) {
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text, url });
+      return;
+    } catch (err) {
+      if (err?.name === "AbortError") return;
+    }
+  }
+
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(url);
+    alert("Lien copié dans le presse-papiers.");
+    return;
+  }
+
+  prompt("Copiez ce lien :", url);
+}
+
+async function shareAdvert(ad) {
+  await shareContent({
+    title: ad.title,
+    text: ad.title,
+    url: advertShareUrl(ad.id),
+  });
+}
+
+async function inviteToDiscussion(discussion) {
+  await shareContent({
+    title: discussion.title,
+    text: `Rejoignez cette discussion sur Kinshout : ${discussion.title}`,
+    url: discussionShareUrl(discussion.id),
+  });
+}
+
+function handleDeepLink() {
+  const hash = window.location.hash.replace(/^#/, "");
+  if (hash.startsWith("ad/")) {
+    openAd(hash.slice(3));
+    return;
+  }
+  if (hash.startsWith("discussion/")) {
+    openDiscussion(hash.slice(12));
   }
 }
 
@@ -428,6 +594,8 @@ function apiDiscussionToDiscussion(d) {
 }
 
 function findListing(id) {
+  const fromCategory = lastCategoryAdverts?.items?.find((ad) => ad.id === id);
+  if (fromCategory) return apiAdvertToListing(fromCategory);
   const fromApi = lastSearchFromApi?.adverts?.find((ad) => ad.id === id);
   if (fromApi) return apiAdvertToListing(fromApi);
   return LISTINGS.find((l) => l.id === id);
@@ -489,14 +657,85 @@ function filterDiscussions(query) {
   );
 }
 
+function intentLabel(intent) {
+  return intent === "offre" ? "Offre" : "Demande";
+}
+
+function intentPillHtml(intent) {
+  const key = intent === "offre" ? "offre" : "demande";
+  return `<span class="intent-pill intent-${key}">${intentLabel(intent)}</span>`;
+}
+
+function shouldShowIntentFilter() {
+  return Boolean(selectedCategory) && selectedCategory !== "discussion" && resultsTab !== "discussions";
+}
+
+function matchesIntentFilter(listing) {
+  if (!shouldShowIntentFilter()) return true;
+  const key = listing.intent === "offre" ? "offre" : "demande";
+  return key === intentFilter;
+}
+
+function setIntentFilter(value, { refetch = true } = {}) {
+  intentFilter = value === "demande" ? "demande" : "offre";
+  document.querySelectorAll("#resultsIntentChips .intent-chip").forEach((chip) => {
+    const active = chip.dataset.intent === intentFilter;
+    chip.classList.toggle("active", active);
+    chip.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  updateIntentFilterVisibility();
+  if (!refetch) return;
+  if (isCategoryBrowseMode()) {
+    fetchAndRenderCategoryResults(true);
+  } else {
+    renderResults();
+  }
+}
+
+function updateIntentFilterVisibility() {
+  const el = document.getElementById("resultsIntentFilter");
+  if (!el) return;
+  el.hidden = !shouldShowIntentFilter();
+}
+
+function renderListingThumb(listing) {
+  const thumb = listingThumb(listing);
+  if (thumb) {
+    return `<img class="listing-thumb" src="${thumb}" alt="" loading="lazy" />`;
+  }
+  const key = listing.intent === "offre" ? "offre" : "demande";
+  return `<span class="listing-thumb listing-thumb--placeholder listing-thumb--${key}" aria-hidden="true">${
+    key === "offre" ? "📦" : "🔍"
+  }</span>`;
+}
+
+function isCategoryBrowseMode() {
+  return Boolean(selectedCategory) && selectedCategory !== "discussion";
+}
+
+function getCategoryApiId(slug) {
+  return categorySlugToId.get(slug) || null;
+}
+
+async function loadCategorySlugMap() {
+  try {
+    const result = await api.categories.list({ pageSize: 100 });
+    categorySlugToId = new Map(result.items.map((c) => [c.slug, c.id]));
+  } catch {
+    categorySlugToId = new Map();
+  }
+}
+
 function renderResults() {
   const list = document.getElementById("resultsList");
   const empty = document.getElementById("emptyResults");
   document.getElementById("resultsSearchInput").value = searchQuery;
 
-  const listings = lastSearchFromApi
-    ? lastSearchFromApi.adverts.map(apiAdvertToListing)
-    : filterListings(searchQuery);
+  const listings = isCategoryBrowseMode() && lastCategoryAdverts
+    ? lastCategoryAdverts.items.map(apiAdvertToListing)
+    : lastSearchFromApi
+      ? lastSearchFromApi.adverts.map(apiAdvertToListing)
+      : filterListings(searchQuery).filter(matchesIntentFilter);
   const discussions = lastSearchFromApi
     ? lastSearchFromApi.discussions.map(apiDiscussionToDiscussion)
     : filterDiscussions(searchQuery);
@@ -508,13 +747,14 @@ function renderResults() {
       .map(
         (l) => `
       <button type="button" class="listing-card" data-listing="${l.id}">
-        <img class="listing-thumb" src="${listingThumb(l)}" alt="" loading="lazy" />
+        ${renderListingThumb(l)}
         <span class="listing-body">
+          ${intentPillHtml(l.intent)}
           <span class="listing-title">${escapeHtml(l.title)}</span>
           <span class="listing-price">${escapeHtml(l.price)}</span>
           <span class="listing-meta">${escapeHtml(l.location)} · ${escapeHtml(l.time)}</span>
         </span>
-        <span class="listing-fav">♡</span>
+        ${listingFavHtml(l.id)}
       </button>`
       )
       .join("");
@@ -547,18 +787,16 @@ function renderResults() {
     btn.addEventListener("click", () => openDiscussion(btn.dataset.discussion));
   });
 
-  list.querySelectorAll(".listing-fav").forEach((fav) => {
-    fav.addEventListener("click", (e) => {
-      e.stopPropagation();
-      fav.classList.toggle("active");
-      fav.textContent = fav.classList.contains("active") ? "♥" : "♡";
-    });
-  });
+  wireListingFavButtons(list);
 
   updateLoadMoreButton();
+  updateIntentFilterVisibility();
 }
 
 function hasMoreSearchResults() {
+  if (isCategoryBrowseMode() && lastCategoryAdverts) {
+    return lastCategoryAdverts.hasMore;
+  }
   const pagination = lastSearchFromApi?.pagination;
   if (!pagination) return false;
   if (resultsTab === "annonces") return pagination.hasMoreAdverts;
@@ -614,15 +852,85 @@ async function fetchAndRenderResults(reset = true) {
 }
 
 async function loadMoreSearchResults() {
+  if (isCategoryBrowseMode() && lastCategoryAdverts?.hasMore) {
+    categoryAdvertsPage += 1;
+    await fetchAndRenderCategoryResults(false);
+    return;
+  }
   if (!hasMoreSearchResults()) return;
   searchPage += 1;
   await fetchAndRenderResults(false);
 }
 
+async function fetchAndRenderCategoryResults(reset = true) {
+  const list = document.getElementById("resultsList");
+  const empty = document.getElementById("emptyResults");
+  const loadMore = document.getElementById("resultsLoadMore");
+  document.getElementById("resultsSearchInput").value = searchQuery;
+
+  if (selectedCategory === "discussion") {
+    lastCategoryAdverts = null;
+    if (reset) categoryAdvertsPage = 1;
+    renderResults();
+    return;
+  }
+
+  const categoryId = getCategoryApiId(selectedCategory);
+  if (!categoryId) {
+    if (reset) {
+      lastCategoryAdverts = null;
+      categoryAdvertsPage = 1;
+    }
+    renderResults();
+    return;
+  }
+
+  if (reset) {
+    categoryAdvertsPage = 1;
+    lastCategoryAdverts = null;
+    list.innerHTML = '<p class="profile-whatsapp-status">Chargement…</p>';
+    list.hidden = false;
+    empty.hidden = true;
+    if (loadMore) loadMore.hidden = true;
+  } else if (loadMore) {
+    loadMore.disabled = true;
+    loadMore.textContent = "Chargement…";
+  }
+
+  try {
+    const result = await api.adverts.list({
+      categoryId,
+      intent: shouldShowIntentFilter() ? intentFilter : undefined,
+      page: categoryAdvertsPage,
+      pageSize: CATEGORY_ADVERTS_PAGE_SIZE,
+    });
+
+    if (reset || !lastCategoryAdverts) {
+      lastCategoryAdverts = result;
+    } else {
+      lastCategoryAdverts = {
+        ...result,
+        items: [...lastCategoryAdverts.items, ...result.items],
+      };
+    }
+    renderResults();
+  } catch {
+    if (reset) lastCategoryAdverts = null;
+    renderResults();
+  } finally {
+    if (loadMore) {
+      loadMore.disabled = false;
+      loadMore.textContent = "Afficher plus";
+    }
+  }
+}
+
 async function openResults(query) {
   searchQuery = query.trim();
   selectedCategory = null;
+  lastCategoryAdverts = null;
   resultsTab = query.toLowerCase().includes("discussion") ? "discussions" : "all";
+  updateIntentFilterVisibility();
   document.querySelectorAll("#resultsTabs .tab").forEach((t) => {
     t.classList.toggle("active", t.dataset.tab === resultsTab || (resultsTab === "all" && t.dataset.tab === "all"));
   });
@@ -630,15 +938,17 @@ async function openResults(query) {
   await fetchAndRenderResults();
 }
 
-function openCategoryResults(categoryId) {
+async function openCategoryResults(categoryId) {
   selectedCategory = categoryId;
   searchQuery = CATEGORY_QUERIES[categoryId] || "";
-  resultsTab = categoryId === "discussion" ? "discussions" : "all";
+  lastSearchFromApi = null;
+  resultsTab = categoryId === "discussion" ? "discussions" : "annonces";
+  setIntentFilter("offre", { refetch: false });
   document.querySelectorAll("#resultsTabs .tab").forEach((t) => {
     t.classList.toggle("active", t.dataset.tab === resultsTab);
   });
-  renderResults();
   go("results");
+  await fetchAndRenderCategoryResults(true);
 }
 
 // --- Ad detail ---
@@ -697,6 +1007,8 @@ function openAd(id) {
     waBtn.textContent = "WhatsApp indisponible";
     waBtn.onclick = null;
   }
+
+  updateFavButton(document.getElementById("adFavBtn"), id);
   go("ad-detail");
 }
 
@@ -773,7 +1085,10 @@ function renderDiscussionDetail() {
       </div>
       <p class="thread-body">${escapeHtml(d.body)}</p>
       ${isOwner ? renderDiscussionOwnerActions("discussion", d.id) : ""}
-      <div class="thread-actions"><span>👍 J'aime</span><span>↩ Répondre</span><span>↗ Partager</span></div>
+      <div class="thread-actions">
+        <button type="button" class="thread-action-btn" data-action="reply">↩ Répondre</button>
+        <button type="button" class="thread-action-btn" data-action="invite">↗ Inviter</button>
+      </div>
     `;
   }
 
@@ -916,6 +1231,22 @@ function wireDiscussionDetailActions() {
     btn.addEventListener("click", () => {
       replyEditingId = null;
       renderDiscussionDetail();
+    });
+  });
+
+  document.querySelectorAll(".thread-action-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const d = currentDiscussionDetail;
+      if (!d) return;
+
+      if (btn.dataset.action === "reply") {
+        document.querySelector("#replyForm .reply-input")?.focus();
+        return;
+      }
+
+      if (btn.dataset.action === "invite") {
+        await inviteToDiscussion(d);
+      }
     });
   });
 }
@@ -1166,6 +1497,87 @@ async function renderMyAdverts() {
   await fetchMyAdverts(true);
 }
 
+function renderSavedAdvertsList(adverts) {
+  return adverts
+    .map((ad) => {
+      const listing = apiAdvertToListing(ad);
+      return `
+      <button type="button" class="listing-card" data-listing="${listing.id}">
+        ${renderListingThumb(listing)}
+        <span class="listing-body">
+          ${intentPillHtml(listing.intent)}
+          <span class="listing-title">${escapeHtml(listing.title)}</span>
+          <span class="listing-price">${escapeHtml(listing.price)}</span>
+          <span class="listing-meta">${escapeHtml(listing.location)} · ${escapeHtml(listing.time)}</span>
+        </span>
+        ${listingFavHtml(listing.id)}
+      </button>`;
+    })
+    .join("");
+}
+
+async function fetchSavedAdverts(reset = false) {
+  const list = document.getElementById("savedAdvertsList");
+  const empty = document.getElementById("savedAdvertsEmpty");
+  const loadMore = document.getElementById("savedAdvertsLoadMore");
+
+  if (reset) {
+    savedAdvertsPage = 1;
+    savedAdvertsItems = [];
+    list.innerHTML = '<p class="profile-whatsapp-status">Chargement…</p>';
+    empty.hidden = true;
+    if (loadMore) loadMore.hidden = true;
+  } else if (loadMore) {
+    loadMore.disabled = true;
+    loadMore.textContent = "Chargement…";
+  }
+
+  try {
+    const result = await api.adverts.listSaved({
+      page: savedAdvertsPage,
+      pageSize: SAVED_ADVERTS_PAGE_SIZE,
+    });
+
+    savedAdvertsHasMore = result.hasMore;
+    savedAdvertsItems = reset ? result.items : [...savedAdvertsItems, ...result.items];
+    result.items.forEach((ad) => savedAdvertIds.add(String(ad.id)));
+
+    if (!savedAdvertsItems.length) {
+      list.innerHTML = "";
+      empty.hidden = false;
+      if (loadMore) loadMore.hidden = true;
+      return;
+    }
+
+    list.innerHTML = renderSavedAdvertsList(savedAdvertsItems);
+    list.querySelectorAll("[data-listing]").forEach((btn) => {
+      btn.addEventListener("click", () => openAd(btn.dataset.listing));
+    });
+    wireListingFavButtons(list);
+    empty.hidden = true;
+    if (loadMore) {
+      loadMore.hidden = !savedAdvertsHasMore;
+      loadMore.disabled = false;
+      loadMore.textContent = "Afficher plus";
+    }
+  } catch (err) {
+    list.innerHTML = "";
+    empty.textContent = err.message || "Impossible de charger vos annonces sauvegardées.";
+    empty.hidden = false;
+    if (loadMore) loadMore.hidden = true;
+  }
+}
+
+async function loadMoreSavedAdverts() {
+  if (!savedAdvertsHasMore) return;
+  savedAdvertsPage += 1;
+  await fetchSavedAdverts(false);
+}
+
+async function renderSavedAdverts() {
+  await fetchSavedAdverts(true);
+}
+
 function startEditAdvert(ad) {
   publishDraft.photos.forEach((photo) => {
     if (photo.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(photo.previewUrl);
@@ -1358,6 +1770,7 @@ function initPublishStep2() {
 
 function init() {
   loadPopularSearches();
+  loadCategorySlugMap();
   renderCategories();
   refreshAccountView();
   initFacebookSdk();
@@ -1395,7 +1808,18 @@ function init() {
     tab.addEventListener("click", async () => {
       resultsTab = tab.dataset.tab;
       document.querySelectorAll("#resultsTabs .tab").forEach((t) => t.classList.toggle("active", t === tab));
-      await fetchAndRenderResults(true);
+      updateIntentFilterVisibility();
+      if (isCategoryBrowseMode()) {
+        await fetchAndRenderCategoryResults(true);
+      } else {
+        await fetchAndRenderResults(true);
+      }
+    });
+  });
+
+  document.querySelectorAll("#resultsIntentChips .intent-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      setIntentFilter(chip.dataset.intent);
     });
   });
 
@@ -1467,6 +1891,30 @@ function init() {
     go("my-adverts");
   });
 
+  document.getElementById("accountSavedAdverts").addEventListener("click", () => {
+    if (!isSignedIn()) {
+      alert("Connectez-vous pour voir vos annonces sauvegardées.");
+      go("account");
+      return;
+    }
+    go("saved-adverts");
+  });
+
+  document.getElementById("adFavBtn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (currentListingId) toggleSavedAdvert(currentListingId, e.currentTarget);
+  });
+
+  document.getElementById("adShareBtn").addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const ad = findListing(currentListingId);
+    if (ad) await shareAdvert(ad);
+  });
+
+  document.getElementById("savedAdvertsLoadMore")?.addEventListener("click", () => {
+    loadMoreSavedAdverts();
+  });
+
   document.getElementById("facebookLoginBtn").addEventListener("click", async () => {
     if (!FACEBOOK_APP_ID) {
       setFacebookLoginStatus("Facebook App ID non configuré (VITE_FACEBOOK_APP_ID).", "warn");
@@ -1485,6 +1933,7 @@ function init() {
       if (authUser?.whatsAppNumber) setWhatsAppNumber(authUser.whatsAppNumber);
       setFacebookLoginStatus("");
       await refreshAccountView();
+      await refreshSavedAdvertIds();
     } catch (err) {
       setFacebookLoginStatus(err.message || "Connexion Facebook impossible.", "warn");
     }
@@ -1494,6 +1943,7 @@ function init() {
     api.auth.clearSession();
     api.client.clearToken();
     authUser = null;
+    savedAdvertIds = new Set();
     refreshAccountView();
   });
 
@@ -1603,6 +2053,7 @@ function init() {
 
   const q = new URLSearchParams(location.search).get("q");
   if (q) openResults(q);
+  else handleDeepLink();
 }
 
 init();
