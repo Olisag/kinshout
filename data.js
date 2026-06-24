@@ -25,6 +25,8 @@ export const LISTINGS = [
     description:
       "Bel appartement moderne et lumineux à louer à Gombe. 2 chambres, salon spacieux, cuisine équipée, balcon avec belle vue, parking disponible, sécurité 24h/24.",
     whatsapp: "+243 900 000 001",
+    viewCount: 124,
+    likeCount: 7,
   },
   {
     id: "2",
@@ -41,6 +43,8 @@ export const LISTINGS = [
     tags: ["1 chambre", "Meublé", "Sécurité"],
     description: "Studio entièrement meublé, eau et électricité comprises. Quartier calme à Gombe, accès facile.",
     whatsapp: "+243 900 000 002",
+    viewCount: 58,
+    likeCount: 3,
   },
   {
     id: "3",

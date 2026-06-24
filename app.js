@@ -571,6 +571,21 @@ function displayImageUrl(url) {
   return `${api.baseUrl}${url.startsWith("/") ? url : `/${url}`}`;
 }
 
+function formatAdvertCount(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return "0";
+  if (n >= 1_000_000) return `${Math.round(n / 100_000) / 10}M`.replace(".0M", "M");
+  if (n >= 10_000) return `${Math.round(n / 100) / 10}k`.replace(".0k", "k");
+  if (n >= 1_000) return `${(n / 1000).toFixed(1).replace(".0", "")}k`;
+  return String(n);
+}
+
+function listingStatsHtml(listing) {
+  const views = formatAdvertCount(listing.viewCount);
+  const likes = formatAdvertCount(listing.likeCount);
+  return `<span class="listing-stats" aria-label="${views} vues, ${likes} favoris"><span class="listing-stat">👁 ${views}</span><span class="listing-stat">♡ ${likes}</span></span>`;
+}
+
 function apiAdvertToListing(ad) {
   return {
     id: ad.id,
@@ -585,6 +600,8 @@ function apiAdvertToListing(ad) {
     tags: ad.tags || [],
     description: ad.description,
     whatsapp: ad.whatsAppNumber,
+    viewCount: ad.viewCount ?? 0,
+    likeCount: ad.likeCount ?? 0,
   };
 }
 
@@ -798,6 +815,7 @@ function renderResults() {
           ${intentPillHtml(l.intent)}
           <span class="listing-title">${escapeHtml(l.title)}</span>
           <span class="listing-price">${escapeHtml(l.price)}</span>
+          ${listingStatsHtml(l)}
           <span class="listing-meta">${escapeHtml(l.location)} · ${escapeHtml(l.time)}</span>
         </span>
         ${listingFavHtml(l.id)}
@@ -1028,6 +1046,8 @@ function openAd(id) {
   document.getElementById("adPrice").textContent = ad.price;
   const detailLocation = ad.location.includes("Kinshasa") ? ad.location : `${ad.location}, Kinshasa`;
   document.getElementById("adLocation").textContent = `${detailLocation} · ${formatPublishedTime(ad.time)}`;
+  document.getElementById("adStats").textContent =
+    `👁 ${formatAdvertCount(ad.viewCount)} vues · ♡ ${formatAdvertCount(ad.likeCount)} favoris`;
   document.getElementById("adDesc").textContent = ad.description;
   document.getElementById("adTags").innerHTML = ad.tags
     .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
@@ -1446,6 +1466,7 @@ function renderMyAdvertsList(adverts) {
         <div class="my-advert-body">
           <h2 class="my-advert-title">${escapeHtml(ad.title)}</h2>
           <p class="my-advert-meta">${escapeHtml(ad.price || "—")} · ${escapeHtml(ad.location || "Kinshasa")} · ${escapeHtml(ad.time)}</p>
+          <p class="my-advert-stats">👁 ${formatAdvertCount(ad.viewCount)} vues · ♡ ${formatAdvertCount(ad.likeCount)} favoris</p>
         </div>
         <div class="my-advert-actions">
           <button type="button" class="btn-primary-inline my-advert-edit" data-id="${ad.id}">Modifier</button>
@@ -1554,6 +1575,7 @@ function renderSavedAdvertsList(adverts) {
           ${intentPillHtml(listing.intent)}
           <span class="listing-title">${escapeHtml(listing.title)}</span>
           <span class="listing-price">${escapeHtml(listing.price)}</span>
+          ${listingStatsHtml(listing)}
           <span class="listing-meta">${escapeHtml(listing.location)} · ${escapeHtml(listing.time)}</span>
         </span>
         ${listingFavHtml(listing.id)}
