@@ -284,6 +284,17 @@
         <div id="view-settings" class="page" hidden>
           <h1 class="page-title">Paramètres</h1>
           <section class="settings-section">
+            <h2 class="profile-section-title">Confidentialité</h2>
+            <p class="profile-section-desc">Contrôlez ce que les autres utilisateurs peuvent voir.</p>
+            <label class="settings-toggle" for="profilePublicToggle">
+              <input type="checkbox" id="profilePublicToggle" checked />
+              <span>Autoriser les autres à voir mon profil</span>
+            </label>
+            <p class="profile-section-desc settings-hint" id="profilePublicHint" hidden>
+              Votre profil public affiche votre nom, votre photo et vos annonces publiées.
+            </p>
+          </section>
+          <section class="settings-section">
             <h2 class="profile-section-title">Apparence</h2>
             <p class="profile-section-desc">Choisissez le mode d'affichage de l'application.</p>
             <div class="display-mode-picker" id="displayModePicker" role="group" aria-label="Mode d'affichage">
@@ -291,6 +302,19 @@
               <button type="button" class="display-mode-option" data-mode="sombre">Mode sombre</button>
             </div>
           </section>
+        </div>
+
+        <div id="view-user-profile" class="page" hidden>
+          <div class="profile-header" id="publicProfileHeader">
+            <div class="profile-avatar" id="publicProfileAvatar">?</div>
+            <p class="profile-name" id="publicProfileName"></p>
+            <p class="profile-since" id="publicProfileSince"></p>
+            <p class="profile-section-desc" id="publicProfileCount"></p>
+          </div>
+          <h2 class="profile-section-title">Annonces publiées</h2>
+          <div id="publicProfileAdverts" class="listing-cards"></div>
+          <p class="empty-state" id="publicProfileEmpty" hidden>Aucune annonce publiée.</p>
+          <p class="empty-state" id="publicProfilePrivate" hidden>Ce profil n'est pas public.</p>
         </div>
 
         <div id="view-account" class="page" hidden>
@@ -342,6 +366,6 @@
       </nav>
     </div>
     <script async defer crossorigin="anonymous" src="https://connect.facebook.net/fr_FR/sdk.js"></script>
-    <script type="module" src="app.js?v=9"></script>
+    <script type="module" src="app.js?v=10"></script>
   </body>
 </html>

@@ -387,6 +387,11 @@ export const api = {
     updateDisplayPreference: (mode) =>
       request("/api/auth/me/display-preference", { method: "PUT", body: { mode }, auth: true }),
 
+    getProfileVisibility: () => request("/api/auth/me/profile-visibility", { auth: true }),
+
+    updateProfileVisibility: (isPublic) =>
+      request("/api/auth/me/profile-visibility", { method: "PUT", body: { isPublic }, auth: true }),
+
     setSession({ token }) {
 
       setUserToken(token);
@@ -552,6 +557,16 @@ export const api = {
 
 
   health: () => fetch(`${API_BASE}/api/health`).then((r) => r.json()),
+
+  users: {
+    getProfile: (id) => request(`/api/users/${id}/profile`),
+
+    listAdverts: (id, options = {}) => {
+      const { page = 1, pageSize = 20 } = options;
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      return request(`/api/users/${id}/adverts?${params}`);
+    },
+  },
 
 };
 

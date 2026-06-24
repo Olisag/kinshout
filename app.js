@@ -113,6 +113,7 @@ const BACK_VIEWS = new Set([
   "my-adverts",
   "saved-adverts",
   "settings",
+  "user-profile",
 ]);
 
 // Register views
@@ -130,6 +131,7 @@ const BACK_VIEWS = new Set([
   "my-adverts",
   "saved-adverts",
   "settings",
+  "user-profile",
 ].forEach((name) => {
   registerView(name, document.getElementById(`view-${name}`));
 });
@@ -319,6 +321,91 @@ function updateDisplayModePicker(mode) {
 
 function renderSettingsView() {
   updateDisplayModePicker(getStoredDisplayMode());
+  const toggle = document.getElementById("profilePublicToggle");
+  const hint = document.getElementById("profilePublicHint");
+  if (toggle) {
+    toggle.disabled = !isSignedIn();
+    toggle.checked = authUser ? Boolean(authUser.isProfilePublic) : true;
+  }
+  if (hint) hint.hidden = !toggle?.checked;
+}
+
+async function setProfileVisibility(isPublic) {
+  const toggle = document.getElementById("profilePublicToggle");
+  const hint = document.getElementById("profilePublicHint");
+  if (hint) hint.hidden = !isPublic;
+  if (!isSignedIn()) {
+    if (toggle) toggle.checked = false;
+    alert("Connectez-vous pour modifier la visibilité de votre profil.");
+    go("account");
+    return;
+  }
+
+  try {
+    const result = await api.auth.updateProfileVisibility(isPublic);
+    const saved = Boolean(result?.isPublic);
+    if (toggle) toggle.checked = saved;
+    if (hint) hint.hidden = !saved;
+    if (authUser) authUser.isProfilePublic = saved;
+  } catch (err) {
+    if (toggle) toggle.checked = Boolean(authUser?.isProfilePublic);
+    alert(err.message || "Impossible d'enregistrer la visibilité du profil.");
+  }
+}
+
+async function openPublicProfile(userId) {
+  const empty = document.getElementById("publicProfileEmpty");
+  const privateMsg = document.getElementById("publicProfilePrivate");
+  const list = document.getElementById("publicProfileAdverts");
+  empty.hidden = true;
+  privateMsg.hidden = true;
+  list.innerHTML = '<p class="profile-whatsapp-status">Chargement…</p>';
+
+  try {
+    const profile = await api.users.getProfile(userId);
+    document.getElementById("publicProfileName").textContent = profile.displayName;
+    document.getElementById("publicProfileSince").textContent = profile.memberSince;
+    document.getElementById("publicProfileAvatar").textContent = profileInitials(profile.displayName);
+    document.getElementById("publicProfileCount").textContent =
+      `${profile.publishedAdvertCount} annonce${profile.publishedAdvertCount === 1 ? "" : "s"} publiée${profile.publishedAdvertCount === 1 ? "" : "s"}`;
+
+    const adverts = await api.users.listAdverts(userId, { page: 1, pageSize: 20 });
+    if (!adverts.items.length) {
+      list.innerHTML = "";
+      empty.hidden = false;
+    } else {
+      list.innerHTML = adverts.items
+        .map((ad) => {
+          const listing = apiAdvertToListing(ad);
+          return `
+      <button type="button" class="listing-card" data-listing="${listing.id}">
+        ${renderListingThumb(listing)}
+        <span class="listing-body">
+          ${intentPillHtml(listing.intent)}
+          <span class="listing-title">${escapeHtml(listing.title)}</span>
+          <span class="listing-price">${escapeHtml(listing.price)}</span>
+          ${listingStatsHtml(listing)}
+          <span class="listing-meta">${escapeHtml(listing.location)} · ${escapeHtml(listing.time)}</span>
+        </span>
+        ${listingFavHtml(listing.id)}
+      </button>`;
+        })
+        .join("");
+      list.querySelectorAll("[data-listing]").forEach((btn) => {
+        btn.addEventListener("click", () => openAd(btn.dataset.listing));
+      });
+    }
+
+    go("user-profile");
+  } catch {
+    list.innerHTML = "";
+    privateMsg.hidden = false;
+    go("user-profile");
+  }
+}
+
+function profileShareUrl(userId) {
+  return shareUrl(`#profile/${userId}`);
 }
 
 async function setDisplayMode(mode) {
@@ -514,6 +601,10 @@ function handleDeepLink() {
   }
   if (hash.startsWith("discussion/")) {
     openDiscussion(hash.slice(12));
+    return;
+  }
+  if (hash.startsWith("profile/")) {
+    openPublicProfile(hash.slice(8));
   }
 }
 
@@ -1976,6 +2067,10 @@ function init() {
     btn.addEventListener("click", () => {
       setDisplayMode(btn.dataset.mode);
     });
+  });
+
+  document.getElementById("profilePublicToggle")?.addEventListener("change", (e) => {
+    setProfileVisibility(e.target.checked);
   });
 
   document.getElementById("adFavBtn").addEventListener("click", (e) => {
