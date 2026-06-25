@@ -510,6 +510,43 @@ function wireListingFavButtons(container) {
   });
 }
 
+function applyAdvertSaveState(apiAd) {
+  if (!apiAd?.id) return;
+
+  const id = String(apiAd.id);
+  const isSaved = Boolean(apiAd.isSaved);
+  const likeCount = apiAd.likeCount ?? 0;
+
+  if (isSaved) savedAdvertIds.add(id);
+  else savedAdvertIds.delete(id);
+
+  const patchRaw = (ad) => {
+    if (String(ad.id) !== id) return;
+    ad.isSaved = isSaved;
+    ad.likeCount = likeCount;
+  };
+
+  lastCategoryAdverts?.items?.forEach(patchRaw);
+  lastSearchFromApi?.adverts?.forEach(patchRaw);
+  savedAdvertsItems.forEach(patchRaw);
+
+  const listing = { likeCount, viewCount: apiAd.viewCount ?? findListing(id)?.viewCount ?? 0 };
+
+  document.querySelectorAll(`.listing-card[data-listing="${CSS.escape(id)}"] .listing-stats`).forEach((el) => {
+    el.outerHTML = listingStatsHtml(listing);
+  });
+
+  if (String(currentListingId) === id) {
+    document.getElementById("adStats").textContent =
+      `👁 ${formatAdvertCount(listing.viewCount)} vues · ♡ ${formatAdvertCount(likeCount)} favoris`;
+  }
+
+  document.querySelectorAll(`.listing-fav[data-advert-id="${CSS.escape(id)}"]`).forEach((el) => {
+    updateFavButton(el, id);
+  });
+  updateFavButton(document.getElementById("adFavBtn"), id);
+}
+
 async function toggleSavedAdvert(advertId, btn) {
   if (!isSignedIn()) {
     alert("Connectez-vous pour sauvegarder une annonce.");
@@ -524,17 +561,17 @@ async function toggleSavedAdvert(advertId, btn) {
 
   try {
     if (persist) {
-      if (wasSaved) await api.adverts.unsave(id);
-      else await api.adverts.save(id);
+      const updated = wasSaved ? await api.adverts.unsave(id) : await api.adverts.save(id);
+      applyAdvertSaveState(updated);
+    } else {
+      if (wasSaved) savedAdvertIds.delete(id);
+      else savedAdvertIds.add(id);
+
+      document.querySelectorAll(`.listing-fav[data-advert-id="${CSS.escape(id)}"]`).forEach((el) => {
+        updateFavButton(el, id);
+      });
+      updateFavButton(document.getElementById("adFavBtn"), id);
     }
-
-    if (wasSaved) savedAdvertIds.delete(id);
-    else savedAdvertIds.add(id);
-
-    document.querySelectorAll(`.listing-fav[data-advert-id="${CSS.escape(id)}"]`).forEach((el) => {
-      updateFavButton(el, id);
-    });
-    updateFavButton(document.getElementById("adFavBtn"), id);
 
     if (getCurrent() === "saved-adverts" && wasSaved && persist) {
       await fetchSavedAdverts(true);
@@ -678,6 +715,9 @@ function listingStatsHtml(listing) {
 }
 
 function apiAdvertToListing(ad) {
+  const isSaved = Boolean(ad.isSaved);
+  if (isSaved) savedAdvertIds.add(String(ad.id));
+  else savedAdvertIds.delete(String(ad.id));
   return {
     id: ad.id,
     title: ad.title,
@@ -693,6 +733,7 @@ function apiAdvertToListing(ad) {
     whatsapp: ad.whatsAppNumber,
     viewCount: ad.viewCount ?? 0,
     likeCount: ad.likeCount ?? 0,
+    isSaved,
   };
 }
 
