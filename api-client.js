@@ -464,13 +464,39 @@ export const api = {
 
   search: {
 
-    query: (query, tab = "all", page = 1, pageSize = 20) =>
-      request(
-        `/api/search?q=${encodeURIComponent(query)}&tab=${encodeURIComponent(tab)}&page=${page}&pageSize=${pageSize}`
-      ),
+    query: (query, tabOrOptions = "all", page = 1, pageSize = 20) => {
+      const options = typeof tabOrOptions === "object"
+        ? { tab: "all", page: 1, pageSize: 20, sort: "recent", ...tabOrOptions }
+        : { tab: tabOrOptions, page, pageSize, sort: "recent" };
+      const { tab = "all", sort = "recent", intent } = options;
+      const params = new URLSearchParams({
+        q: query,
+        tab,
+        page: String(options.page ?? page),
+        pageSize: String(options.pageSize ?? pageSize),
+        sort,
+      });
+      if (intent) params.set("intent", intent);
+      return request(`/api/search?${params}`);
+    },
 
-    post: (query, tab = "all", page = 1, pageSize = 20) =>
-      request("/api/search", { method: "POST", body: { query, tab, page, pageSize } }),
+    post: (query, tabOrOptions = "all", page = 1, pageSize = 20) => {
+      const options = typeof tabOrOptions === "object"
+        ? { tab: "all", page: 1, pageSize: 20, sort: "recent", ...tabOrOptions }
+        : { tab: tabOrOptions, page, pageSize, sort: "recent" };
+      const { tab = "all", sort = "recent", intent } = options;
+      return request("/api/search", {
+        method: "POST",
+        body: {
+          query,
+          tab,
+          page: options.page ?? page,
+          pageSize: options.pageSize ?? pageSize,
+          sort,
+          ...(intent ? { intent } : {}),
+        },
+      });
+    },
 
     popular: (page = 1, pageSize = 10) =>
       request(`/api/search/popular?page=${page}&pageSize=${pageSize}`),
