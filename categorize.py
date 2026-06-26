@@ -12,35 +12,36 @@ CATEGORIES = {
         "label": "Immobilier",
         "icon": "🏠",
         "keywords": [
-            "appartement", "maison", "studio", "villa", "loyer", "louer", "location",
+            "appartement", "apartment", "maison", "house", "studio", "villa", "loyer", "rent", "louer", "location",
             "colocation", "terrain", "bureau", "commerce", "gombe", "limete", "bandal",
-            "kinshasa", "chambre", "immeuble", "parcelle",
+            "kinshasa", "chambre", "immeuble", "parcelle", "ndako", "kofanda", "kotiya",
         ],
     },
     "vehicules_transport": {
         "label": "Véhicules & transport",
         "icon": "🚗",
         "keywords": [
-            "voiture", "moto", "taxi", "chauffeur", "conducteur", "véhicule", "vehicule",
-            "camion", "bus", "transport", "permis", "garage", "pièces auto",
+            "voiture", "car", "moto", "motorcycle", "taxi", "chauffeur", "driver", "conducteur",
+            "véhicule", "vehicule", "camion", "bus", "transport", "permis", "garage", "pièces auto",
+            "motuka",
         ],
     },
     "electronique": {
         "label": "Électronique",
         "icon": "📱",
         "keywords": [
-            "iphone", "samsung", "téléphone", "telephone", "ordinateur", "laptop",
-            "tablette", "tv", "télévision", "console", "playstation", "xbox",
-            "écouteurs", "chargeur", "starlink", "internet", "modem", "wifi",
+            "iphone", "samsung", "téléphone", "telephone", "phone", "ordinateur", "computer", "laptop",
+            "tablette", "tablet", "tv", "télévision", "console", "playstation", "xbox",
+            "écouteurs", "chargeur", "starlink", "internet", "modem", "wifi", "simu",
         ],
     },
     "emploi_services": {
         "label": "Emploi & services",
         "icon": "💼",
         "keywords": [
-            "emploi", "travail", "job", "recrute", "cv", "salaire", "stage",
-            "plombier", "électricien", "electricien", "menuisier", "coiffeur",
-            "nettoyage", "réparation", "reparation", "service", "freelance",
+            "emploi", "travail", "job", "work", "recrute", "cv", "salaire", "stage",
+            "plombier", "électricien", "electrician", "electricien", "menuisier", "coiffeur",
+            "nettoyage", "réparation", "reparation", "service", "freelance", "mosala", "kozwa mosala",
         ],
     },
     "mode_beaute": {
@@ -72,10 +73,14 @@ CATEGORIES = {
 OFFER_WORDS = [
     "vends", "vendre", "vend", "à vendre", "a vendre", "disponible", "propose",
     "offre", "location", "loue", "louer",
+    "for sale", "selling", "sell", "available", "rent out", "for rent", "to rent",
+    "koteka", "kotia", "na koteka", "kotisa", "ezali na koteka",
 ]
 DEMAND_WORDS = [
     "cherche", "recherche", "besoin", "voulez", "veux", "acheter", "achète",
     "achete", "louer un", "louer une", "recrute",
+    "looking for", "want", "need", "buy", "buying", "hire", "hiring",
+    "koluka", "kolinga", "nazali koluka", "nazali kolinga", "nalingi",
 ]
 
 
@@ -148,6 +153,8 @@ def categorize_openai(text: str) -> Optional[dict]:
     ) + ", autre (Autre)"
 
     prompt = f"""Tu es l'IA de Kinshout, une plateforme d'annonces à Kinshasa (RDC).
+Les utilisateurs écrivent en français, anglais, lingala, ou un mélange. Comprends le sens quelle que soit la langue.
+Exemples lingala: motuka=voiture, ndako=maison, koteka=vendre, koluka=chercher, kolinga=vouloir, mosala=travail.
 Analyse ce texte et réponds UNIQUEMENT en JSON valide:
 {{
   "categoryId": "une parmi: {categories_list}",
