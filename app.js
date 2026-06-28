@@ -1234,7 +1234,9 @@ function renderDiscussions() {
     (d) => !q || d.title.toLowerCase().includes(q) || d.body.toLowerCase().includes(q)
   );
   const visibleItems =
-    activeTab === "recent" ? [...items].reverse() : [...items].sort((a, b) => b.replies - a.replies);
+    activeTab === "recent"
+      ? [...items].reverse()
+      : [...items].sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0));
 
   el.innerHTML = visibleItems
     .map(
