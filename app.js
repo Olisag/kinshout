@@ -778,8 +778,11 @@ async function loadPopularSearches() {
 
 function normalizeDiscussionFromApi(d) {
   if (!d) return d;
+  const replyCount = Number(d.replyCount ?? d.replies) || 0;
   return {
     ...d,
+    replyCount,
+    replies: replyCount,
     isLiked: d.isLiked === true,
     likeCount: Number(d.likeCount) || 0,
     viewCount: Number(d.viewCount) || 0,
@@ -794,7 +797,8 @@ function apiDiscussionToDiscussion(d) {
     body: normalized.body,
     author: normalized.author,
     avatar: normalized.avatar,
-    replies: normalized.replies,
+    replyCount: normalized.replyCount,
+    replies: normalized.replyCount,
     time: normalized.time,
     likeCount: normalized.likeCount,
     viewCount: normalized.viewCount,
