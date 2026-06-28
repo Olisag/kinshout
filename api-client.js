@@ -152,15 +152,10 @@ async function request(path, { method = "GET", body, auth = false } = {}) {
 
   if (clientToken) headers["X-Kinshout-Client-Token"] = clientToken;
 
+  // Send user JWT when present so public reads can populate isSaved / isLiked.
+  const userToken = getUserToken();
 
-
-  if (auth) {
-
-    const userToken = getUserToken();
-
-    if (userToken) headers.Authorization = `Bearer ${userToken}`;
-
-  }
+  if (userToken) headers.Authorization = `Bearer ${userToken}`;
 
 
 
@@ -188,13 +183,9 @@ async function request(path, { method = "GET", body, auth = false } = {}) {
 
     if (retryClientToken) retryHeaders["X-Kinshout-Client-Token"] = retryClientToken;
 
-    if (auth) {
+    const retryUserToken = getUserToken();
 
-      const retryUserToken = getUserToken();
-
-      if (retryUserToken) retryHeaders.Authorization = `Bearer ${retryUserToken}`;
-
-    }
+    if (retryUserToken) retryHeaders.Authorization = `Bearer ${retryUserToken}`;
 
     res = await fetch(`${API_BASE}${path}`, {
 
@@ -556,6 +547,12 @@ export const api = {
         method: "DELETE",
         auth: true,
       }),
+
+    listLikedIds: () => request("/api/discussions/liked/ids", { auth: true }),
+
+    like: (id) => request(`/api/discussions/${id}/like`, { method: "POST", auth: true }),
+
+    unlike: (id) => request(`/api/discussions/${id}/like`, { method: "DELETE", auth: true }),
 
   },
 

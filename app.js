@@ -776,15 +776,29 @@ async function loadPopularSearches() {
   }
 }
 
-function apiDiscussionToDiscussion(d) {
+function normalizeDiscussionFromApi(d) {
+  if (!d) return d;
   return {
-    id: d.id,
-    title: d.title,
-    body: d.body,
-    author: d.author,
-    avatar: d.avatar,
-    replies: d.replies,
-    time: d.time,
+    ...d,
+    isLiked: d.isLiked === true,
+    likeCount: Number(d.likeCount) || 0,
+    viewCount: Number(d.viewCount) || 0,
+  };
+}
+
+function apiDiscussionToDiscussion(d) {
+  const normalized = normalizeDiscussionFromApi(d);
+  return {
+    id: normalized.id,
+    title: normalized.title,
+    body: normalized.body,
+    author: normalized.author,
+    avatar: normalized.avatar,
+    replies: normalized.replies,
+    time: normalized.time,
+    likeCount: normalized.likeCount,
+    viewCount: normalized.viewCount,
+    isLiked: normalized.isLiked,
   };
 }
 
@@ -1227,7 +1241,7 @@ function renderDiscussions() {
       (d) => `
     <button type="button" class="discussion-card" data-id="${d.id}">
       <p class="discussion-card-title">${escapeHtml(d.title)}</p>
-      <p class="discussion-card-meta"><span>💬 ${d.replies} réponses</span><span>${escapeHtml(d.time)}</span></p>
+      <p class="discussion-card-meta"><span>💬 ${d.replies} réponses</span><span>❤ ${d.likeCount ?? 0}</span><span>${escapeHtml(d.time)}</span></p>
     </button>`
     )
     .join("");
@@ -1279,7 +1293,7 @@ function renderDiscussionDetail() {
     document.getElementById("discussMainPost").innerHTML = `
       <div class="thread-author">
         <span class="avatar">${d.avatar}</span>
-        <div><div class="thread-name">${escapeHtml(d.author)}</div><div class="thread-time">${escapeHtml(d.time)}</div></div>
+        <div><div class="thread-name">${escapeHtml(d.author)}</div><div class="thread-time">${escapeHtml(d.time)} · ${d.viewCount ?? 0} vues · ${d.likeCount ?? 0} j'aime</div></div>
       </div>
       <p class="thread-body">${escapeHtml(d.body)}</p>
       ${isOwner ? renderDiscussionOwnerActions("discussion", d.id) : ""}
@@ -1471,15 +1485,15 @@ async function loadDiscussionDetail(reset = true) {
     });
 
     if (reset || !currentDiscussionDetail) {
-      currentDiscussionDetail = detail;
+      currentDiscussionDetail = normalizeDiscussionFromApi(detail);
     } else {
-      currentDiscussionDetail = {
+      currentDiscussionDetail = normalizeDiscussionFromApi({
         ...detail,
         thread: {
           ...detail.thread,
           items: [...(currentDiscussionDetail.thread?.items || []), ...(detail.thread?.items || [])],
         },
-      };
+      });
     }
 
     renderDiscussionDetail();
