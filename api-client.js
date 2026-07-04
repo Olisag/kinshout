@@ -404,11 +404,10 @@ export const api = {
   categories: {
 
     list: (options = {}) => {
-      const { page = 1, pageSize = 20, aiOnly = true } = options;
+      const { page = 1, pageSize = 20 } = options;
       const params = new URLSearchParams({
         page: String(page),
         pageSize: String(pageSize),
-        aiOnly: String(aiOnly),
       });
       return request(`/api/categories?${params}`);
     },

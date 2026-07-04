@@ -78,10 +78,19 @@ let savedAdvertsItems = [];
 
 const CATEGORY_QUERIES = {
   immobilier: "Appartement à louer à Gombe",
+  vehicules: "Voiture Kinshasa",
+  telephones: "iPhone Kinshasa",
+  informatique: "Ordinateur Kinshasa",
+  electronique: "Électronique Kinshasa",
+  emplois: "Emploi Kinshasa",
+  meubles: "Meubles Kinshasa",
+  services: "Services Kinshasa",
+  mode: "Vêtements Kinshasa",
+  jouets: "Jouets Kinshasa",
+  autres: "Annonces Kinshasa",
   vehicules_transport: "Véhicules",
   emploi_services: "Emplois",
-  electronique: "Électroniques",
-  maison_jardin: "Services",
+  maison_jardin: "Maison",
   discussion: "Discussions",
 };
 
@@ -866,13 +875,21 @@ function renderCategories() {
 
 async function loadBrowseCategories() {
   try {
-    const result = await api.categories.list({ pageSize: 100, aiOnly: true });
-    browseCategories = result.items.map((c) => ({
+    const items = [];
+    let page = 1;
+    let hasMore = true;
+    while (hasMore) {
+      const result = await api.categories.list({ page, pageSize: 100 });
+      items.push(...result.items);
+      hasMore = result.hasMore;
+      page += 1;
+    }
+    browseCategories = items.map((c) => ({
       id: c.slug,
       label: c.label,
       icon: c.icon || "📦",
     }));
-    categorySlugToId = new Map(result.items.map((c) => [c.slug, c.id]));
+    categorySlugToId = new Map(items.map((c) => [c.slug, c.id]));
   } catch {
     browseCategories = [];
     categorySlugToId = new Map();
