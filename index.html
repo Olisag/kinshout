@@ -134,6 +134,17 @@
               <button type="button" class="intent-chip intent-chip-demande" data-intent="demande" role="tab" aria-selected="false">Demandes</button>
             </div>
           </div>
+          <div class="source-filter" id="resultsSourceFilter" hidden>
+            <div class="source-filter-chips" id="resultsSourceChips" role="tablist" aria-label="Source des annonces">
+              <button type="button" class="source-chip active" data-source="all">Toutes</button>
+              <button type="button" class="source-chip" data-source="kinshout">Kinshout</button>
+              <button type="button" class="source-chip" data-source="external">Sources externes</button>
+              <button type="button" class="source-chip" data-source="facebook_marketplace">Facebook</button>
+              <button type="button" class="source-chip" data-source="mediacongo">MediaCongo</button>
+              <button type="button" class="source-chip" data-source="zwandako">Zwandako</button>
+              <button type="button" class="source-chip" data-source="jiji_rdc">Jiji RDC</button>
+            </div>
+          </div>
           <div id="resultsList" class="listing-cards"></div>
           <button type="button" class="btn-secondary-full" id="resultsLoadMore" hidden>Afficher plus</button>
           <p class="empty-results" id="emptyResults" hidden>Aucun résultat pour cette recherche.</p>
@@ -143,6 +154,7 @@
         <div id="view-ad-detail" class="page ad-detail-page" hidden>
           <div class="ad-gallery" id="adGallery">
             <img id="adImage" src="" alt="" />
+            <span class="ad-photo-label" id="adPhotoLabel" hidden>Photos de l'annonce originale</span>
             <div class="ad-gallery-top">
               <button type="button" class="icon-btn-round" id="adBackBtn">←</button>
               <div class="ad-gallery-actions">
@@ -153,6 +165,12 @@
             </div>
           </div>
           <div class="ad-content">
+            <span class="ad-external-badge" id="adExternalBadge" hidden>Source externe</span>
+            <div class="ad-source-card" id="adSourceCard" hidden>
+              <p class="ad-source-title" id="adSourceTitle"></p>
+              <a class="ad-source-link" id="adSourceLink" href="#" target="_blank" rel="noopener noreferrer">Voir l'annonce originale ↗</a>
+              <p class="ad-source-disclaimer">Kinshout n'est pas le propriétaire de cette annonce.</p>
+            </div>
             <h1 class="ad-title" id="adTitle"></h1>
             <p class="ad-price" id="adPrice"></p>
             <p class="ad-location" id="adLocation"></p>
@@ -160,8 +178,10 @@
             <div class="tag-row" id="adTags"></div>
             <p class="ad-desc" id="adDesc"></p>
             <p class="ad-resume" id="adResume" hidden></p>
+            <p class="ad-import-note" id="adImportNote" hidden></p>
           </div>
           <div class="ad-footer-bar" id="adFooterBar">
+            <button type="button" class="btn-secondary-ad" id="adExternalBtn" hidden>Voir l'annonce ↗</button>
             <button type="button" class="btn-whatsapp btn-whatsapp-full" id="adWhatsApp">Contacter sur WhatsApp</button>
           </div>
         </div>

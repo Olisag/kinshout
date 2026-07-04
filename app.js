@@ -11,14 +11,9 @@ import {
   getCurrent,
 } from "./router.js";
 
-const POPULAR_FALLBACK = [
-  "Appartement à louer à Gombe",
-  "Je cherche un chauffeur",
-  "iPhone 13 pas cher",
-  "Discussion sur Starlink",
-];
-
 const QUARTIERS = ["Gombe", "Limete", "Bandal", "Binza", "Kintambo", "Kinshasa"];
+
+let browseCategories = [];
 
 const app = document.getElementById("app");
 const appHeader = document.getElementById("appHeader");
@@ -39,7 +34,9 @@ const MAX_PUBLISH_PHOTOS = 10;
 
 let searchQuery = "";
 let resultsTab = "all";
+let searchSort = "recent";
 let intentFilter = "offre";
+let sourceFilter = "all";
 let searchPage = 1;
 const SEARCH_PAGE_SIZE = 20;
 let categoryAdvertsPage = 1;
@@ -734,6 +731,10 @@ function apiAdvertToListing(ad) {
     viewCount: ad.viewCount ?? 0,
     likeCount: ad.likeCount ?? 0,
     isSaved,
+    isExternal: Boolean(ad.isExternal),
+    source: ad.source || null,
+    contact: ad.contact || null,
+    details: ad.details || null,
   };
 }
 
@@ -752,6 +753,10 @@ function ensureWhatsAppForPublish() {
 // --- Home pills ---
 function renderPopularPills(queries) {
   const el = document.getElementById("homePills");
+  if (!queries.length) {
+    el.innerHTML = "";
+    return;
+  }
   el.innerHTML = queries
     .map(
       (q) => `
@@ -767,12 +772,15 @@ function renderPopularPills(queries) {
 }
 
 async function loadPopularSearches() {
+  const section = document.querySelector(".popular");
   try {
     const result = await api.search.popular(1, 10);
     const queries = result.items.map((item) => item.query).filter(Boolean);
-    renderPopularPills(queries.length ? queries : POPULAR_FALLBACK);
+    if (section) section.hidden = queries.length === 0;
+    renderPopularPills(queries);
   } catch {
-    renderPopularPills(POPULAR_FALLBACK);
+    if (section) section.hidden = true;
+    renderPopularPills([]);
   }
 }
 
@@ -806,11 +814,21 @@ function apiDiscussionToDiscussion(d) {
   };
 }
 
+function findAdvertDto(id) {
+  const sid = String(id);
+  const fromCategory = lastCategoryAdverts?.items?.find((ad) => String(ad.id) === sid);
+  if (fromCategory) return fromCategory;
+  const fromApi = lastSearchFromApi?.adverts?.find((ad) => String(ad.id) === sid);
+  if (fromApi) return fromApi;
+  const fromMixed = lastSearchFromApi?.items?.find(
+    (item) => item.kind === "advert" && item.advert && String(item.advert.id) === sid
+  );
+  return fromMixed?.advert || null;
+}
+
 function findListing(id) {
-  const fromCategory = lastCategoryAdverts?.items?.find((ad) => ad.id === id);
-  if (fromCategory) return apiAdvertToListing(fromCategory);
-  const fromApi = lastSearchFromApi?.adverts?.find((ad) => ad.id === id);
-  if (fromApi) return apiAdvertToListing(fromApi);
+  const dto = findAdvertDto(id);
+  if (dto) return apiAdvertToListing(dto);
   return LISTINGS.find((l) => l.id === id);
 }
 
@@ -823,19 +841,43 @@ function findDiscussion(id) {
 // --- Categories ---
 function renderCategories() {
   const ul = document.getElementById("categoryList");
-  ul.innerHTML = CATEGORIES.map(
-    (c) => `
+  if (!browseCategories.length) {
+    ul.innerHTML =
+      '<li class="category-empty">Les catégories apparaîtront ici au fur et à mesure des annonces importées.</li>';
+    return;
+  }
+
+  ul.innerHTML = browseCategories
+    .map(
+      (c) => `
     <li><button type="button" class="category-item" data-cat="${c.id}">
       <span class="category-item-icon category-icon-${c.id}">${c.icon}</span>
       ${escapeHtml(c.label)}
       <span class="category-item-chevron">›</span>
     </button></li>`
-  ).join("");
+    )
+    .join("");
   ul.querySelectorAll(".category-item").forEach((btn) => {
     btn.addEventListener("click", () => {
       openCategoryResults(btn.dataset.cat);
     });
   });
+}
+
+async function loadBrowseCategories() {
+  try {
+    const result = await api.categories.list({ pageSize: 100, aiOnly: true });
+    browseCategories = result.items.map((c) => ({
+      id: c.slug,
+      label: c.label,
+      icon: c.icon || "📦",
+    }));
+    categorySlugToId = new Map(result.items.map((c) => [c.slug, c.id]));
+  } catch {
+    browseCategories = [];
+    categorySlugToId = new Map();
+  }
+  renderCategories();
 }
 
 // --- Results ---
@@ -877,6 +919,69 @@ function intentLabel(intent) {
 function intentPillHtml(intent) {
   const key = intent === "offre" ? "offre" : "demande";
   return `<span class="intent-pill intent-${key}">${intentLabel(intent)}</span>`;
+}
+
+function shouldShowSourceFilter() {
+  return resultsTab !== "discussions";
+}
+
+function updateSourceFilterVisibility() {
+  const el = document.getElementById("resultsSourceFilter");
+  if (!el) return;
+  el.hidden = !shouldShowSourceFilter();
+}
+
+function setSourceFilter(value, { refetch = true } = {}) {
+  sourceFilter = value || "all";
+  document.querySelectorAll("#resultsSourceChips .source-chip").forEach((chip) => {
+    const active = chip.dataset.source === sourceFilter;
+    chip.classList.toggle("active", active);
+    chip.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  updateSourceFilterVisibility();
+  if (!refetch) return;
+  if (isCategoryBrowseMode()) {
+    fetchAndRenderCategoryResults(true);
+  } else {
+    fetchAndRenderResults(true);
+  }
+}
+
+function listingSourceHtml(listing) {
+  if (!listing.isExternal || !listing.source) return "";
+  const name = listing.source.providerName || listing.source.provider;
+  return `<span class="listing-source">↗ ${escapeHtml(name)}</span>`;
+}
+
+function renderListingCard(l) {
+  return `
+      <button type="button" class="listing-card${l.isExternal ? " listing-card--external" : ""}" data-listing="${l.id}">
+        ${renderListingThumb(l)}
+        <span class="listing-body">
+          ${intentPillHtml(l.intent)}
+          <span class="listing-title">${escapeHtml(l.title)}</span>
+          <span class="listing-price">${escapeHtml(l.price)}</span>
+          ${listingStatsHtml(l)}
+          <span class="listing-meta">${escapeHtml(l.location)} · ${escapeHtml(l.time)}</span>
+          ${listingSourceHtml(l)}
+        </span>
+        ${listingFavHtml(l.id)}
+      </button>`;
+}
+
+function searchSourceParam() {
+  return shouldShowSourceFilter() && sourceFilter !== "all" ? { source: sourceFilter } : {};
+}
+
+function formatImportDate(iso) {
+  if (!iso) return "";
+  try {
+    return new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" }).format(
+      new Date(iso)
+    );
+  } catch {
+    return "";
+  }
 }
 
 function shouldShowIntentFilter() {
@@ -931,12 +1036,8 @@ function getCategoryApiId(slug) {
 }
 
 async function loadCategorySlugMap() {
-  try {
-    const result = await api.categories.list({ pageSize: 100 });
-    categorySlugToId = new Map(result.items.map((c) => [c.slug, c.id]));
-  } catch {
-    categorySlugToId = new Map();
-  }
+  if (categorySlugToId.size > 0) return;
+  await loadBrowseCategories();
 }
 
 function renderResults() {
@@ -944,40 +1045,46 @@ function renderResults() {
   const empty = document.getElementById("emptyResults");
   document.getElementById("resultsSearchInput").value = searchQuery;
 
-  const listings = isCategoryBrowseMode() && lastCategoryAdverts
-    ? lastCategoryAdverts.items.map(apiAdvertToListing)
-    : lastSearchFromApi
-      ? lastSearchFromApi.adverts.map(apiAdvertToListing)
-      : filterListings(searchQuery).filter(matchesIntentFilter);
-  const discussions = lastSearchFromApi
-    ? lastSearchFromApi.discussions.map(apiDiscussionToDiscussion)
-    : filterDiscussions(searchQuery);
-
   let html = "";
 
-  if (resultsTab === "all" || resultsTab === "annonces") {
-    html += listings
-      .map(
-        (l) => `
-      <button type="button" class="listing-card" data-listing="${l.id}">
-        ${renderListingThumb(l)}
+  if (resultsTab === "all" && Array.isArray(lastSearchFromApi?.items)) {
+    html = lastSearchFromApi.items
+      .map((item) => {
+        if (item.kind === "advert" && item.advert) {
+          return renderListingCard(apiAdvertToListing(item.advert));
+        }
+        if (item.kind === "discussion" && item.discussion) {
+          const d = apiDiscussionToDiscussion(item.discussion);
+          return `
+      <button type="button" class="listing-card" data-discussion="${d.id}">
+        <span class="listing-thumb" style="display:flex;align-items:center;justify-content:center;font-size:2rem;background:var(--lavender)">💬</span>
         <span class="listing-body">
-          ${intentPillHtml(l.intent)}
-          <span class="listing-title">${escapeHtml(l.title)}</span>
-          <span class="listing-price">${escapeHtml(l.price)}</span>
-          ${listingStatsHtml(l)}
-          <span class="listing-meta">${escapeHtml(l.location)} · ${escapeHtml(l.time)}</span>
+          <span class="listing-title">${escapeHtml(d.title)}</span>
+          <span class="listing-meta">${d.replies} réponses · ${escapeHtml(d.time)}</span>
         </span>
-        ${listingFavHtml(l.id)}
-      </button>`
-      )
+      </button>`;
+        }
+        return "";
+      })
       .join("");
-  }
+  } else {
+    const listings = isCategoryBrowseMode() && lastCategoryAdverts
+      ? lastCategoryAdverts.items.map(apiAdvertToListing)
+      : lastSearchFromApi
+        ? lastSearchFromApi.adverts.map(apiAdvertToListing)
+        : filterListings(searchQuery).filter(matchesIntentFilter);
+    const discussions = lastSearchFromApi
+      ? lastSearchFromApi.discussions.map(apiDiscussionToDiscussion)
+      : filterDiscussions(searchQuery);
 
-  if (resultsTab === "all" || resultsTab === "discussions") {
-    html += discussions
-      .map(
-        (d) => `
+    if (resultsTab === "all" || resultsTab === "annonces") {
+      html += listings.map((l) => renderListingCard(l)).join("");
+    }
+
+    if (resultsTab === "all" || resultsTab === "discussions") {
+      html += discussions
+        .map(
+          (d) => `
       <button type="button" class="listing-card" data-discussion="${d.id}">
         <span class="listing-thumb" style="display:flex;align-items:center;justify-content:center;font-size:2rem;background:var(--lavender)">💬</span>
         <span class="listing-body">
@@ -985,8 +1092,9 @@ function renderResults() {
           <span class="listing-meta">${d.replies} réponses · ${escapeHtml(d.time)}</span>
         </span>
       </button>`
-      )
-      .join("");
+        )
+        .join("");
+    }
   }
 
   list.innerHTML = html;
@@ -1005,6 +1113,7 @@ function renderResults() {
 
   updateLoadMoreButton();
   updateIntentFilterVisibility();
+  updateSourceFilterVisibility();
 }
 
 function hasMoreSearchResults() {
@@ -1013,6 +1122,10 @@ function hasMoreSearchResults() {
   }
   const pagination = lastSearchFromApi?.pagination;
   if (!pagination) return false;
+  if (resultsTab === "all") {
+    if (pagination.hasMore != null) return pagination.hasMore;
+    return pagination.hasMoreAdverts || pagination.hasMoreDiscussions;
+  }
   if (resultsTab === "annonces") return pagination.hasMoreAdverts;
   if (resultsTab === "discussions") return pagination.hasMoreDiscussions;
   return pagination.hasMoreAdverts || pagination.hasMoreDiscussions;
@@ -1043,7 +1156,14 @@ async function fetchAndRenderResults(reset = true) {
   }
 
   try {
-    const result = await api.search.post(searchQuery, resultsTab, searchPage, SEARCH_PAGE_SIZE);
+    const result = await api.search.post(searchQuery, {
+      tab: resultsTab,
+      page: searchPage,
+      pageSize: SEARCH_PAGE_SIZE,
+      sort: searchSort,
+      ...(shouldShowIntentFilter() ? { intent: intentFilter } : {}),
+      ...searchSourceParam(),
+    });
     if (reset || !lastSearchFromApi) {
       lastSearchFromApi = result;
     } else {
@@ -1051,6 +1171,7 @@ async function fetchAndRenderResults(reset = true) {
         ...result,
         adverts: [...(lastSearchFromApi.adverts || []), ...(result.adverts || [])],
         discussions: [...(lastSearchFromApi.discussions || []), ...(result.discussions || [])],
+        items: [...(lastSearchFromApi.items || []), ...(result.items || [])],
       };
     }
     renderResults();
@@ -1117,6 +1238,7 @@ async function fetchAndRenderCategoryResults(reset = true) {
       intent: shouldShowIntentFilter() ? intentFilter : undefined,
       page: categoryAdvertsPage,
       pageSize: CATEGORY_ADVERTS_PAGE_SIZE,
+      ...searchSourceParam(),
     });
 
     if (reset || !lastCategoryAdverts) {
@@ -1154,7 +1276,7 @@ async function openResults(query) {
 
 async function openCategoryResults(categoryId) {
   selectedCategory = categoryId;
-  searchQuery = CATEGORY_QUERIES[categoryId] || "";
+  searchQuery = CATEGORY_QUERIES[categoryId] || browseCategories.find((c) => c.id === categoryId)?.label || "";
   lastSearchFromApi = null;
   resultsTab = categoryId === "discussion" ? "discussions" : "annonces";
   setIntentFilter("offre", { refetch: false });
@@ -1189,9 +1311,42 @@ function openAd(id) {
   if (!ad) return;
   currentListingId = id;
   showAdPhoto(ad, 0);
-  document.getElementById("adGallery").onclick = () => {
-    if (listingImages(ad).length > 1) showAdPhoto(ad, currentAdPhotoIndex + 1);
-  };
+  const isExternal = Boolean(ad.isExternal && ad.source);
+  document.getElementById("adExternalBadge").hidden = !isExternal;
+  document.getElementById("adPhotoLabel").hidden = !isExternal;
+
+  const sourceCard = document.getElementById("adSourceCard");
+  const externalBtn = document.getElementById("adExternalBtn");
+  const importNote = document.getElementById("adImportNote");
+  if (isExternal) {
+    sourceCard.hidden = false;
+    document.getElementById("adSourceTitle").textContent = `Trouvé sur ${ad.source.providerName || ad.source.provider}`;
+    const sourceLink = document.getElementById("adSourceLink");
+    sourceLink.href = ad.source.externalUrl;
+    sourceLink.textContent = "Voir l'annonce originale ↗";
+    externalBtn.hidden = false;
+    externalBtn.onclick = () => window.open(ad.source.externalUrl, "_blank", "noopener,noreferrer");
+    const imported = formatImportDate(ad.source.importedAt);
+    if (imported) {
+      importNote.hidden = false;
+      importNote.textContent = `Annonce importée et vérifiée par Kinshout le ${imported}.`;
+    } else {
+      importNote.hidden = true;
+      importNote.textContent = "";
+    }
+  } else {
+    sourceCard.hidden = true;
+    externalBtn.hidden = true;
+    importNote.hidden = true;
+    importNote.textContent = "";
+  }
+
+  document.getElementById("adGallery").onclick = isExternal
+    ? null
+    : () => {
+        if (listingImages(ad).length > 1) showAdPhoto(ad, currentAdPhotoIndex + 1);
+      };
+
   document.getElementById("adTitle").textContent = ad.title;
   document.getElementById("adPrice").textContent = ad.price;
   const detailLocation = ad.location.includes("Kinshasa") ? ad.location : `${ad.location}, Kinshasa`;
@@ -1212,15 +1367,21 @@ function openAd(id) {
     resumeEl.innerHTML = "";
   }
 
-  const wa = whatsappLink(ad.whatsapp);
+  const contactNumber = ad.contact?.whatsapp || ad.contact?.phone || ad.whatsapp;
+  const wa = whatsappLink(contactNumber);
   const waBtn = document.getElementById("adWhatsApp");
-  if (wa) {
+  waBtn.hidden = false;
+  if (isExternal && ad.source?.provider === "facebook_marketplace" && ad.source.externalUrl) {
+    waBtn.disabled = false;
+    waBtn.textContent = "Contacter sur Facebook";
+    waBtn.onclick = () => window.open(ad.source.externalUrl, "_blank", "noopener,noreferrer");
+  } else if (wa) {
     waBtn.disabled = false;
     waBtn.textContent = "Contacter sur WhatsApp";
     waBtn.onclick = () => window.open(wa, "_blank");
   } else {
     waBtn.disabled = true;
-    waBtn.textContent = "WhatsApp indisponible";
+    waBtn.textContent = isExternal ? "Contact indisponible" : "WhatsApp indisponible";
     waBtn.onclick = null;
   }
 
@@ -1990,8 +2151,7 @@ function initPublishStep2() {
 
 function init() {
   loadPopularSearches();
-  loadCategorySlugMap();
-  renderCategories();
+  loadBrowseCategories();
   refreshAccountView();
   initFacebookSdk();
 
@@ -2029,6 +2189,7 @@ function init() {
       resultsTab = tab.dataset.tab;
       document.querySelectorAll("#resultsTabs .tab").forEach((t) => t.classList.toggle("active", t === tab));
       updateIntentFilterVisibility();
+      updateSourceFilterVisibility();
       if (isCategoryBrowseMode()) {
         await fetchAndRenderCategoryResults(true);
       } else {
@@ -2040,6 +2201,12 @@ function init() {
   document.querySelectorAll("#resultsIntentChips .intent-chip").forEach((chip) => {
     chip.addEventListener("click", () => {
       setIntentFilter(chip.dataset.intent);
+    });
+  });
+
+  document.querySelectorAll("#resultsSourceChips .source-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      setSourceFilter(chip.dataset.source);
     });
   });
 

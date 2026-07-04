@@ -404,8 +404,12 @@ export const api = {
   categories: {
 
     list: (options = {}) => {
-      const { page = 1, pageSize = 20 } = options;
-      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      const { page = 1, pageSize = 20, aiOnly = true } = options;
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: String(pageSize),
+        aiOnly: String(aiOnly),
+      });
       return request(`/api/categories?${params}`);
     },
 
@@ -416,10 +420,11 @@ export const api = {
   adverts: {
 
     list: (options = {}) => {
-      const { categoryId, page = 1, pageSize = 20, sort = "recent", intent } = options;
+      const { categoryId, page = 1, pageSize = 20, sort = "recent", intent, source } = options;
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), sort });
       if (categoryId) params.set("categoryId", categoryId);
       if (intent) params.set("intent", intent);
+      if (source && source !== "all") params.set("source", source);
       return request(`/api/adverts?${params}`);
     },
 
@@ -459,7 +464,7 @@ export const api = {
       const options = typeof tabOrOptions === "object"
         ? { tab: "all", page: 1, pageSize: 20, sort: "recent", ...tabOrOptions }
         : { tab: tabOrOptions, page, pageSize, sort: "recent" };
-      const { tab = "all", sort = "recent", intent } = options;
+      const { tab = "all", sort = "recent", intent, source } = options;
       const params = new URLSearchParams({
         q: query,
         tab,
@@ -468,6 +473,7 @@ export const api = {
         sort,
       });
       if (intent) params.set("intent", intent);
+      if (source && source !== "all") params.set("source", source);
       return request(`/api/search?${params}`);
     },
 
@@ -475,7 +481,7 @@ export const api = {
       const options = typeof tabOrOptions === "object"
         ? { tab: "all", page: 1, pageSize: 20, sort: "recent", ...tabOrOptions }
         : { tab: tabOrOptions, page, pageSize, sort: "recent" };
-      const { tab = "all", sort = "recent", intent } = options;
+      const { tab = "all", sort = "recent", intent, source } = options;
       return request("/api/search", {
         method: "POST",
         body: {
@@ -485,6 +491,7 @@ export const api = {
           pageSize: options.pageSize ?? pageSize,
           sort,
           ...(intent ? { intent } : {}),
+          ...(source && source !== "all" ? { source } : {}),
         },
       });
     },
