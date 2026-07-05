@@ -231,6 +231,10 @@
   font-weight: 900;
 }
 
+.suggestions-title-discussions {
+  margin-top: 1.5rem;
+}
+
 .search-page .category-list {
   display: grid !important;
   gap: 0.72rem !important;

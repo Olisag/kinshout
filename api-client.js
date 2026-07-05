@@ -509,10 +509,20 @@ export const api = {
   discussions: {
 
     list: (options = {}) => {
-      const { q, page = 1, pageSize = 20, sort = "recent" } = options;
+      const { q, categoryId, page = 1, pageSize = 20, sort = "recent" } = options;
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), sort });
       if (q) params.set("q", q);
+      if (categoryId) params.set("categoryId", categoryId);
       return request(`/api/discussions?${params}`);
+    },
+
+    listCategories: (options = {}) => {
+      const { page = 1, pageSize = 20 } = options;
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: String(pageSize),
+      });
+      return request(`/api/discussions/categories?${params}`);
     },
 
     listMine: (options = {}) => {

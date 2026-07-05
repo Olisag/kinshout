@@ -14,6 +14,7 @@ import {
 const QUARTIERS = ["Gombe", "Limete", "Bandal", "Binza", "Kintambo", "Kinshasa"];
 
 let browseCategories = [];
+let browseDiscussionCategories = [];
 
 const app = document.getElementById("app");
 const appHeader = document.getElementById("appHeader");
@@ -42,6 +43,7 @@ const SEARCH_PAGE_SIZE = 20;
 let categoryAdvertsPage = 1;
 const CATEGORY_ADVERTS_PAGE_SIZE = 20;
 let categorySlugToId = new Map();
+let discussionCategorySlugToId = new Map();
 let lastCategoryAdverts = null;
 let myAdvertsPage = 1;
 const MY_ADVERTS_PAGE_SIZE = 20;
@@ -93,6 +95,16 @@ const CATEGORY_QUERIES = {
   emploi_services: "Emplois",
   maison_jardin: "Maison",
   discussion: "Discussions",
+  sport: "Football et sport à Kinshasa",
+  politique: "Politique Kinshasa",
+  societe: "Vie quotidienne Kinshasa",
+  education: "Éducation et EXETAT Kinshasa",
+  tech: "Tech et internet Kinshasa",
+  economie: "Économie Kinshasa",
+  culture: "Culture Kinshasa",
+  sante: "Santé Kinshasa",
+  securite: "Sécurité Kinshasa",
+  transport: "Transport Kinshasa",
 };
 
 const PUBLISH_CATEGORY_LABELS = {
@@ -895,6 +907,12 @@ function findDiscussion(id) {
 }
 
 // --- Categories ---
+function sortCategoriesAutresLast(categories) {
+  const autres = categories.filter((c) => c.id === "autres");
+  const rest = categories.filter((c) => c.id !== "autres");
+  return [...rest, ...autres];
+}
+
 function renderCategories() {
   const ul = document.getElementById("categoryList");
   if (!browseCategories.length) {
@@ -903,7 +921,7 @@ function renderCategories() {
     return;
   }
 
-  ul.innerHTML = browseCategories
+  ul.innerHTML = sortCategoriesAutresLast(browseCategories)
     .map(
       (c) => `
     <li><button type="button" class="category-item" data-cat="${c.id}">
@@ -916,6 +934,38 @@ function renderCategories() {
   ul.querySelectorAll(".category-item").forEach((btn) => {
     btn.addEventListener("click", () => {
       openCategoryResults(btn.dataset.cat);
+    });
+  });
+}
+
+function renderDiscussionCategories() {
+  const ul = document.getElementById("discussionCategoryList");
+  if (!ul) return;
+
+  const items = [
+    { id: "discussion", label: "Toutes les discussions", icon: "💬" },
+    ...sortCategoriesAutresLast(browseDiscussionCategories),
+  ];
+
+  if (items.length <= 1) {
+    ul.innerHTML =
+      '<li class="category-empty">Les thématiques apparaîtront ici au fur et à mesure des discussions importées.</li>';
+    return;
+  }
+
+  ul.innerHTML = items
+    .map(
+      (c) => `
+    <li><button type="button" class="category-item" data-cat="${c.id}" data-kind="discussion">
+      <span class="category-item-icon category-icon-${c.id}">${c.icon}</span>
+      ${escapeHtml(c.label)}
+      <span class="category-item-chevron">›</span>
+    </button></li>`
+    )
+    .join("");
+  ul.querySelectorAll(".category-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      openCategoryResults(btn.dataset.cat, btn.dataset.kind);
     });
   });
 }
@@ -942,6 +992,34 @@ async function loadBrowseCategories() {
     categorySlugToId = new Map();
   }
   renderCategories();
+}
+
+async function loadDiscussionBrowseCategories() {
+  try {
+    const items = [];
+    let page = 1;
+    let hasMore = true;
+    while (hasMore) {
+      const result = await api.discussions.listCategories({ page, pageSize: 100 });
+      items.push(...result.items);
+      hasMore = result.hasMore;
+      page += 1;
+    }
+    browseDiscussionCategories = items.map((c) => ({
+      id: c.slug,
+      label: c.label,
+      icon: c.icon || "💬",
+    }));
+    discussionCategorySlugToId = new Map(items.map((c) => [c.slug, c.id]));
+  } catch {
+    browseDiscussionCategories = [];
+    discussionCategorySlugToId = new Map();
+  }
+  renderDiscussionCategories();
+}
+
+async function loadAllBrowseCategories() {
+  await Promise.all([loadBrowseCategories(), loadDiscussionBrowseCategories()]);
 }
 
 // --- Results ---
@@ -1078,7 +1156,28 @@ function formatImportDate(iso) {
 }
 
 function shouldShowIntentFilter() {
-  return Boolean(selectedCategory) && selectedCategory !== "discussion" && resultsTab !== "discussions";
+  return Boolean(selectedCategory) && !isDiscussionTopicCategory(selectedCategory) && resultsTab !== "discussions";
+}
+
+function isDiscussionTopicCategory(slug) {
+  return slug === "discussion" || discussionCategorySlugToId.has(slug);
+}
+
+function isDiscussionCategoryBrowseMode() {
+  return Boolean(selectedCategory) && isDiscussionTopicCategory(selectedCategory);
+}
+
+function isCategoryBrowseMode() {
+  return Boolean(selectedCategory) && !isDiscussionTopicCategory(selectedCategory);
+}
+
+function getCategoryApiId(slug) {
+  return categorySlugToId.get(slug) || null;
+}
+
+function getDiscussionCategoryApiId(slug) {
+  if (slug === "discussion") return null;
+  return discussionCategorySlugToId.get(slug) || null;
 }
 
 function matchesIntentFilter(listing) {
@@ -1120,17 +1219,9 @@ function renderListingThumb(listing) {
   }</span>`;
 }
 
-function isCategoryBrowseMode() {
-  return Boolean(selectedCategory) && selectedCategory !== "discussion";
-}
-
-function getCategoryApiId(slug) {
-  return categorySlugToId.get(slug) || null;
-}
-
 async function loadCategorySlugMap() {
-  if (categorySlugToId.size > 0) return;
-  await loadBrowseCategories();
+  if (categorySlugToId.size > 0 && discussionCategorySlugToId.size > 0) return;
+  await loadAllBrowseCategories();
 }
 
 function renderResults() {
@@ -1194,7 +1285,7 @@ function hasMoreSearchResults() {
   if (isCategoryBrowseMode() && lastCategoryAdverts) {
     return lastCategoryAdverts.hasMore;
   }
-  if (isCategoryBrowseMode() && selectedCategory === "discussion") {
+  if (isDiscussionCategoryBrowseMode()) {
     return Boolean(lastSearchFromApi?.pagination?.hasMoreDiscussions);
   }
   const pagination = lastSearchFromApi?.pagination;
@@ -1270,8 +1361,7 @@ async function loadMoreSearchResults() {
     return;
   }
   if (
-    isCategoryBrowseMode() &&
-    selectedCategory === "discussion" &&
+    isDiscussionCategoryBrowseMode() &&
     lastSearchFromApi?.pagination?.hasMoreDiscussions
   ) {
     categoryAdvertsPage += 1;
@@ -1289,7 +1379,7 @@ async function fetchAndRenderCategoryResults(reset = true) {
   const loadMore = document.getElementById("resultsLoadMore");
   document.getElementById("resultsSearchInput").value = searchQuery;
 
-  if (selectedCategory === "discussion") {
+  if (isDiscussionCategoryBrowseMode()) {
     lastCategoryAdverts = null;
     if (reset) {
       categoryAdvertsPage = 1;
@@ -1303,8 +1393,10 @@ async function fetchAndRenderCategoryResults(reset = true) {
     }
 
     try {
+      const categoryId = getDiscussionCategoryApiId(selectedCategory);
       const result = await api.discussions.list({
         q: searchQuery || undefined,
+        categoryId: categoryId || undefined,
         page: categoryAdvertsPage,
         pageSize: SEARCH_PAGE_SIZE,
         sort: searchSort,
@@ -1399,11 +1491,12 @@ async function openResults(query) {
   await fetchAndRenderResults();
 }
 
-async function openCategoryResults(categoryId) {
+async function openCategoryResults(categoryId, kind = "advert") {
   selectedCategory = categoryId;
-  searchQuery = CATEGORY_QUERIES[categoryId] || browseCategories.find((c) => c.id === categoryId)?.label || "";
+  const catalog = kind === "discussion" ? browseDiscussionCategories : browseCategories;
+  searchQuery = CATEGORY_QUERIES[categoryId] || catalog.find((c) => c.id === categoryId)?.label || "";
   lastSearchFromApi = null;
-  resultsTab = categoryId === "discussion" ? "discussions" : "annonces";
+  resultsTab = kind === "discussion" ? "discussions" : "annonces";
   setIntentFilter("offre", { refetch: false });
   document.querySelectorAll("#resultsTabs .tab").forEach((t) => {
     t.classList.toggle("active", t.dataset.tab === resultsTab);
@@ -2342,7 +2435,7 @@ function initPublishStep2() {
 
 function init() {
   loadPopularSearches();
-  loadBrowseCategories();
+  loadAllBrowseCategories();
   refreshAccountView();
   initFacebookSdk();
 
