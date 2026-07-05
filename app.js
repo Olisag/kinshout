@@ -675,6 +675,27 @@ function listingFullImages(ad) {
   return ad.image ? [ad.image] : [];
 }
 
+function kinshoutDisplayUrl(url) {
+  if (!url) return "";
+  const path = toUploadPath(url);
+  if (!path.startsWith("/uploads/images/")) return displayImageUrl(url);
+  const displayPath = path.replace(/\.[a-z0-9]+$/i, "_display.webp");
+  return displayImageUrl(displayPath);
+}
+
+function displayImages(ad) {
+  if (Array.isArray(ad.displayImages) && ad.displayImages.length) return ad.displayImages;
+  return listingFullImages(ad).map(kinshoutDisplayUrl);
+}
+
+function preloadAdPhotos(ad) {
+  displayImages(ad).forEach((url) => {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = displayImageUrl(url);
+  });
+}
+
 function listingThumb(ad) {
   const images = listingImages(ad);
   return images[0] ? displayImageUrl(images[0]) : "";
@@ -757,7 +778,8 @@ function toUploadPath(url) {
 function displayImageUrl(url) {
   if (!url) return "";
   if (url.startsWith("http") || url.startsWith("blob:") || url.startsWith("data:")) return url;
-  return `${api.baseUrl}${url.startsWith("/") ? url : `/${url}`}`;
+  const base = api.baseUrl?.replace(/\/$/, "") || "";
+  return `${base}${url.startsWith("/") ? url : `/${url}`}`;
 }
 
 function formatAdvertCount(value) {
@@ -789,6 +811,7 @@ function apiAdvertToListing(ad) {
     intent: ad.intent,
     images: ad.imageUrls || [],
     thumbnails: ad.thumbnailUrls?.length ? ad.thumbnailUrls : ad.imageUrls || [],
+    displayImages: ad.displayImageUrls?.length ? ad.displayImageUrls : [],
     resumeUrl: ad.resumeUrl,
     tags: ad.tags || [],
     description: ad.description,
@@ -1517,7 +1540,8 @@ async function openCategoryResults(categoryId, kind = "advert") {
 
 // --- Ad detail ---
 function showAdPhoto(ad, index) {
-  const images = listingImages(ad);
+  const images = displayImages(ad);
+  const fullImages = listingFullImages(ad);
   if (!images.length) {
     document.getElementById("adImage").src = "";
     document.getElementById("adImage").alt = ad.title;
@@ -1529,8 +1553,20 @@ function showAdPhoto(ad, index) {
   document.getElementById("adImage").hidden = false;
   document.getElementById("adCounter").hidden = images.length <= 1;
   currentAdPhotoIndex = ((index % images.length) + images.length) % images.length;
-  document.getElementById("adImage").src = displayImageUrl(images[currentAdPhotoIndex]);
-  document.getElementById("adImage").alt = ad.title;
+  const imgEl = document.getElementById("adImage");
+  const src = displayImageUrl(images[currentAdPhotoIndex]);
+  const fallback = fullImages[currentAdPhotoIndex]
+    ? displayImageUrl(fullImages[currentAdPhotoIndex])
+    : "";
+  imgEl.onerror = fallback && fallback !== src
+    ? () => {
+        imgEl.onerror = null;
+        imgEl.src = fallback;
+      }
+    : null;
+  imgEl.decoding = "async";
+  imgEl.src = src;
+  imgEl.alt = ad.title;
   document.getElementById("adCounter").textContent = `${currentAdPhotoIndex + 1}/${images.length}`;
 }
 
@@ -1539,6 +1575,7 @@ function openAd(id) {
   if (!ad) return;
   currentListingId = id;
   showAdPhoto(ad, 0);
+  preloadAdPhotos(ad);
   const isExternal = Boolean(ad.isExternal && ad.source);
   const sourceUrl = isExternal ? listingSourceUrl(ad) : null;
   document.getElementById("adExternalBadge").hidden = !isExternal;
