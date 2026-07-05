@@ -75,6 +75,7 @@ let savedAdvertsPage = 1;
 const SAVED_ADVERTS_PAGE_SIZE = 20;
 let savedAdvertsHasMore = false;
 let savedAdvertsItems = [];
+let lastDiscussionsFromApi = null;
 
 const CATEGORY_QUERIES = {
   immobilier: "Appartement à louer à Gombe",
@@ -666,6 +667,42 @@ function whatsappLink(number) {
   return digits ? `https://wa.me/${digits}` : null;
 }
 
+function isValidSourceUrl(url) {
+  if (!url || typeof url !== "string") return false;
+  const trimmed = url.trim();
+  if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) return false;
+  try {
+    const host = new URL(trimmed).hostname.toLowerCase();
+    if (host === "removed.local") return false;
+  } catch {
+    return false;
+  }
+  return true;
+}
+
+function listingSourceUrl(listing) {
+  const url = listing?.source?.externalUrl;
+  return isValidSourceUrl(url) ? url.trim() : null;
+}
+
+function listingContactNumber(listing) {
+  return listing?.contact?.whatsapp || listing?.contact?.phone || listing?.whatsapp || null;
+}
+
+function externalProviderLabel(source) {
+  return source?.providerName || source?.provider || "la source";
+}
+
+function externalSourceActionLabel(source) {
+  const name = externalProviderLabel(source);
+  if (source?.provider === "facebook_marketplace") return "Contacter sur Facebook";
+  return `Voir sur ${name}`;
+}
+
+function openExternalSourceUrl(url) {
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 function updateProfileWhatsAppUi() {
   const input = document.getElementById("profileWhatsApp");
   const status = document.getElementById("profileWhatsAppStatus");
@@ -796,6 +833,8 @@ async function loadPopularSearches() {
 function normalizeDiscussionFromApi(d) {
   if (!d) return d;
   const replyCount = Number(d.replyCount ?? d.replies) || 0;
+  const isExternal = d.isExternal === true;
+  const source = d.source || null;
   return {
     ...d,
     replyCount,
@@ -803,6 +842,8 @@ function normalizeDiscussionFromApi(d) {
     isLiked: d.isLiked === true,
     likeCount: Number(d.likeCount) || 0,
     viewCount: Number(d.viewCount) || 0,
+    isExternal,
+    source,
   };
 }
 
@@ -813,6 +854,7 @@ function apiDiscussionToDiscussion(d) {
     title: normalized.title,
     body: normalized.body,
     author: normalized.author,
+    authorId: normalized.authorId,
     avatar: normalized.avatar,
     replyCount: normalized.replyCount,
     replies: normalized.replyCount,
@@ -820,6 +862,8 @@ function apiDiscussionToDiscussion(d) {
     likeCount: normalized.likeCount,
     viewCount: normalized.viewCount,
     isLiked: normalized.isLiked,
+    isExternal: normalized.isExternal,
+    source: normalized.source,
   };
 }
 
@@ -842,7 +886,10 @@ function findListing(id) {
 }
 
 function findDiscussion(id) {
-  const fromApi = lastSearchFromApi?.discussions?.find((d) => d.id === id);
+  const sid = String(id);
+  const fromList = lastDiscussionsFromApi?.find((d) => String(d.id) === sid);
+  if (fromList) return apiDiscussionToDiscussion(fromList);
+  const fromApi = lastSearchFromApi?.discussions?.find((d) => String(d.id) === sid);
   if (fromApi) return apiDiscussionToDiscussion(fromApi);
   return DISCUSSIONS.find((d) => d.id === id);
 }
@@ -966,8 +1013,37 @@ function setSourceFilter(value, { refetch = true } = {}) {
 
 function listingSourceHtml(listing) {
   if (!listing.isExternal || !listing.source) return "";
-  const name = listing.source.providerName || listing.source.provider;
-  return `<span class="listing-source">↗ ${escapeHtml(name)}</span>`;
+  const name = externalProviderLabel(listing.source);
+  const hasLink = Boolean(listingSourceUrl(listing));
+  return `<span class="listing-source">${hasLink ? "↗" : "•"} ${escapeHtml(name)}</span>`;
+}
+
+function discussionSourceHtml(d) {
+  return listingSourceHtml(d);
+}
+
+function renderDiscussionResultCard(d) {
+  const item = apiDiscussionToDiscussion(d);
+  return `
+      <button type="button" class="listing-card${item.isExternal ? " listing-card--external" : ""}" data-discussion="${item.id}">
+        <span class="listing-thumb" style="display:flex;align-items:center;justify-content:center;font-size:2rem;background:var(--lavender)">💬</span>
+        <span class="listing-body">
+          <span class="listing-title">${escapeHtml(item.title)}</span>
+          <span class="listing-meta">${item.replies} réponses · ${escapeHtml(item.time)}</span>
+          ${discussionSourceHtml(item)}
+        </span>
+      </button>`;
+}
+
+function renderDiscussionListCard(d) {
+  const item = apiDiscussionToDiscussion(d);
+  const sourceLine = discussionSourceHtml(item);
+  return `
+    <button type="button" class="discussion-card${item.isExternal ? " discussion-card--external" : ""}" data-id="${item.id}">
+      <p class="discussion-card-title">${escapeHtml(item.title)}</p>
+      <p class="discussion-card-meta"><span>💬 ${item.replies} réponses</span><span>❤ ${item.likeCount ?? 0}</span><span>${escapeHtml(item.time)}</span></p>
+      ${sourceLine}
+    </button>`;
 }
 
 function renderListingCard(l) {
@@ -1071,15 +1147,7 @@ function renderResults() {
           return renderListingCard(apiAdvertToListing(item.advert));
         }
         if (item.kind === "discussion" && item.discussion) {
-          const d = apiDiscussionToDiscussion(item.discussion);
-          return `
-      <button type="button" class="listing-card" data-discussion="${d.id}">
-        <span class="listing-thumb" style="display:flex;align-items:center;justify-content:center;font-size:2rem;background:var(--lavender)">💬</span>
-        <span class="listing-body">
-          <span class="listing-title">${escapeHtml(d.title)}</span>
-          <span class="listing-meta">${d.replies} réponses · ${escapeHtml(d.time)}</span>
-        </span>
-      </button>`;
+          return renderDiscussionResultCard(item.discussion);
         }
         return "";
       })
@@ -1099,18 +1167,7 @@ function renderResults() {
     }
 
     if (resultsTab === "all" || resultsTab === "discussions") {
-      html += discussions
-        .map(
-          (d) => `
-      <button type="button" class="listing-card" data-discussion="${d.id}">
-        <span class="listing-thumb" style="display:flex;align-items:center;justify-content:center;font-size:2rem;background:var(--lavender)">💬</span>
-        <span class="listing-body">
-          <span class="listing-title">${escapeHtml(d.title)}</span>
-          <span class="listing-meta">${d.replies} réponses · ${escapeHtml(d.time)}</span>
-        </span>
-      </button>`
-        )
-        .join("");
+      html += discussions.map((d) => renderDiscussionResultCard(d)).join("");
     }
   }
 
@@ -1136,6 +1193,9 @@ function renderResults() {
 function hasMoreSearchResults() {
   if (isCategoryBrowseMode() && lastCategoryAdverts) {
     return lastCategoryAdverts.hasMore;
+  }
+  if (isCategoryBrowseMode() && selectedCategory === "discussion") {
+    return Boolean(lastSearchFromApi?.pagination?.hasMoreDiscussions);
   }
   const pagination = lastSearchFromApi?.pagination;
   if (!pagination) return false;
@@ -1209,6 +1269,15 @@ async function loadMoreSearchResults() {
     await fetchAndRenderCategoryResults(false);
     return;
   }
+  if (
+    isCategoryBrowseMode() &&
+    selectedCategory === "discussion" &&
+    lastSearchFromApi?.pagination?.hasMoreDiscussions
+  ) {
+    categoryAdvertsPage += 1;
+    await fetchAndRenderCategoryResults(false);
+    return;
+  }
   if (!hasMoreSearchResults()) return;
   searchPage += 1;
   await fetchAndRenderResults(false);
@@ -1222,8 +1291,47 @@ async function fetchAndRenderCategoryResults(reset = true) {
 
   if (selectedCategory === "discussion") {
     lastCategoryAdverts = null;
-    if (reset) categoryAdvertsPage = 1;
-    renderResults();
+    if (reset) {
+      categoryAdvertsPage = 1;
+      list.innerHTML = '<p class="profile-whatsapp-status">Chargement…</p>';
+      list.hidden = false;
+      empty.hidden = true;
+      if (loadMore) loadMore.hidden = true;
+    } else if (loadMore) {
+      loadMore.disabled = true;
+      loadMore.textContent = "Chargement…";
+    }
+
+    try {
+      const result = await api.discussions.list({
+        q: searchQuery || undefined,
+        page: categoryAdvertsPage,
+        pageSize: SEARCH_PAGE_SIZE,
+        sort: searchSort,
+      });
+      if (reset || !lastSearchFromApi?.discussions) {
+        lastSearchFromApi = {
+          discussions: result.items,
+          pagination: { hasMoreDiscussions: result.hasMore },
+        };
+      } else {
+        lastSearchFromApi = {
+          ...lastSearchFromApi,
+          discussions: [...lastSearchFromApi.discussions, ...result.items],
+          pagination: { hasMoreDiscussions: result.hasMore },
+        };
+      }
+      resultsTab = "discussions";
+      renderResults();
+    } catch {
+      if (reset) lastSearchFromApi = null;
+      renderResults();
+    } finally {
+      if (loadMore) {
+        loadMore.disabled = false;
+        loadMore.textContent = "Afficher plus";
+      }
+    }
     return;
   }
 
@@ -1329,6 +1437,7 @@ function openAd(id) {
   currentListingId = id;
   showAdPhoto(ad, 0);
   const isExternal = Boolean(ad.isExternal && ad.source);
+  const sourceUrl = isExternal ? listingSourceUrl(ad) : null;
   document.getElementById("adExternalBadge").hidden = !isExternal;
   document.getElementById("adPhotoLabel").hidden = !isExternal;
 
@@ -1337,23 +1446,31 @@ function openAd(id) {
   const importNote = document.getElementById("adImportNote");
   if (isExternal) {
     sourceCard.hidden = false;
-    document.getElementById("adSourceTitle").textContent = `Trouvé sur ${ad.source.providerName || ad.source.provider}`;
+    const providerLabel = externalProviderLabel(ad.source);
+    document.getElementById("adSourceTitle").textContent = `Trouvé sur ${providerLabel}`;
     const sourceLink = document.getElementById("adSourceLink");
-    sourceLink.href = ad.source.externalUrl;
-    sourceLink.textContent = "Voir l'annonce originale ↗";
-    externalBtn.hidden = false;
-    externalBtn.onclick = () => window.open(ad.source.externalUrl, "_blank", "noopener,noreferrer");
+    if (sourceUrl) {
+      sourceLink.hidden = false;
+      sourceLink.href = sourceUrl;
+      sourceLink.textContent = "Voir l'annonce originale ↗";
+    } else {
+      sourceLink.hidden = true;
+      sourceLink.removeAttribute("href");
+    }
     const imported = formatImportDate(ad.source.importedAt);
     if (imported) {
       importNote.hidden = false;
-      importNote.textContent = `Annonce importée et vérifiée par Kinshout le ${imported}.`;
+      importNote.textContent = sourceUrl
+        ? `Annonce importée et vérifiée par Kinshout le ${imported}.`
+        : `Annonce importée le ${imported}. Lien vers la source indisponible.`;
     } else {
-      importNote.hidden = true;
-      importNote.textContent = "";
+      importNote.hidden = !sourceUrl;
+      importNote.textContent = sourceUrl
+        ? ""
+        : "Lien vers l'annonce originale indisponible pour cette source.";
     }
   } else {
     sourceCard.hidden = true;
-    externalBtn.hidden = true;
     importNote.hidden = true;
     importNote.textContent = "";
   }
@@ -1384,22 +1501,37 @@ function openAd(id) {
     resumeEl.innerHTML = "";
   }
 
-  const contactNumber = ad.contact?.whatsapp || ad.contact?.phone || ad.whatsapp;
-  const wa = whatsappLink(contactNumber);
+  const wa = whatsappLink(listingContactNumber(ad));
   const waBtn = document.getElementById("adWhatsApp");
   waBtn.hidden = false;
-  if (isExternal && ad.source?.provider === "facebook_marketplace" && ad.source.externalUrl) {
+  if (wa) {
     waBtn.disabled = false;
-    waBtn.textContent = "Contacter sur Facebook";
-    waBtn.onclick = () => window.open(ad.source.externalUrl, "_blank", "noopener,noreferrer");
-  } else if (wa) {
-    waBtn.disabled = false;
+    waBtn.classList.remove("btn-source-action");
     waBtn.textContent = "Contacter sur WhatsApp";
     waBtn.onclick = () => window.open(wa, "_blank");
+    if (isExternal && sourceUrl) {
+      externalBtn.hidden = false;
+      externalBtn.disabled = false;
+      externalBtn.textContent = `Voir sur ${externalProviderLabel(ad.source)} ↗`;
+      externalBtn.onclick = () => openExternalSourceUrl(sourceUrl);
+    } else {
+      externalBtn.hidden = true;
+      externalBtn.onclick = null;
+    }
+  } else if (isExternal && sourceUrl) {
+    waBtn.disabled = false;
+    waBtn.classList.add("btn-source-action");
+    waBtn.textContent = externalSourceActionLabel(ad.source);
+    waBtn.onclick = () => openExternalSourceUrl(sourceUrl);
+    externalBtn.hidden = true;
+    externalBtn.onclick = null;
   } else {
     waBtn.disabled = true;
+    waBtn.classList.remove("btn-source-action");
     waBtn.textContent = isExternal ? "Contact indisponible" : "WhatsApp indisponible";
     waBtn.onclick = null;
+    externalBtn.hidden = true;
+    externalBtn.onclick = null;
   }
 
   updateFavButton(document.getElementById("adFavBtn"), id);
@@ -1407,28 +1539,42 @@ function openAd(id) {
 }
 
 // --- Discussions ---
-function renderDiscussions() {
+async function loadDiscussionsFromApi(sort = "popular") {
+  try {
+    const result = await api.discussions.list({ sort, page: 1, pageSize: 50 });
+    lastDiscussionsFromApi = result.items.map(normalizeDiscussionFromApi);
+    return lastDiscussionsFromApi;
+  } catch {
+    lastDiscussionsFromApi = null;
+    return null;
+  }
+}
+
+async function renderDiscussions() {
   const el = document.getElementById("discussionsList");
   const q = document.getElementById("discussSearchInput").value.toLowerCase();
   const activeTab =
     document.querySelector("[data-discuss-tab].active")?.dataset.discussTab || "popular";
-  const items = DISCUSSIONS.filter(
+  const sort = activeTab === "recent" ? "recent" : "popular";
+
+  el.innerHTML = '<p class="profile-whatsapp-status">Chargement…</p>';
+  const fromApi = await loadDiscussionsFromApi(sort);
+  const base = fromApi ?? DISCUSSIONS;
+  const items = base.filter(
     (d) => !q || d.title.toLowerCase().includes(q) || d.body.toLowerCase().includes(q)
   );
-  const visibleItems =
-    activeTab === "recent"
+  const visibleItems = fromApi
+    ? items
+    : activeTab === "recent"
       ? [...items].reverse()
       : [...items].sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0));
 
-  el.innerHTML = visibleItems
-    .map(
-      (d) => `
-    <button type="button" class="discussion-card" data-id="${d.id}">
-      <p class="discussion-card-title">${escapeHtml(d.title)}</p>
-      <p class="discussion-card-meta"><span>💬 ${d.replies} réponses</span><span>❤ ${d.likeCount ?? 0}</span><span>${escapeHtml(d.time)}</span></p>
-    </button>`
-    )
-    .join("");
+  if (!visibleItems.length) {
+    el.innerHTML = '<p class="empty-state">Aucune discussion pour le moment.</p>';
+    return;
+  }
+
+  el.innerHTML = visibleItems.map((d) => renderDiscussionListCard(d)).join("");
   el.querySelectorAll(".discussion-card").forEach((c) => {
     c.addEventListener("click", () => openDiscussion(c.dataset.id));
   });
@@ -1454,13 +1600,41 @@ function renderDiscussionOwnerActions(kind, id) {
     </div>`;
 }
 
+function updateDiscussionExternalUi(d) {
+  const isExternal = Boolean(d.isExternal && d.source);
+  const sourceUrl = isExternal ? listingSourceUrl(d) : null;
+  document.getElementById("discussExternalBadge").hidden = !isExternal;
+
+  const sourceCard = document.getElementById("discussSourceCard");
+  if (isExternal) {
+    sourceCard.hidden = false;
+    const providerLabel = externalProviderLabel(d.source);
+    const originalAuthor = d.source.originalAuthor?.trim();
+    document.getElementById("discussSourceTitle").textContent = originalAuthor
+      ? `Publication de ${originalAuthor} sur ${providerLabel}`
+      : `Trouvé sur ${providerLabel}`;
+    const sourceLink = document.getElementById("discussSourceLink");
+    if (sourceUrl) {
+      sourceLink.hidden = false;
+      sourceLink.href = sourceUrl;
+      sourceLink.textContent = `Voir sur ${providerLabel} ↗`;
+    } else {
+      sourceLink.hidden = true;
+      sourceLink.removeAttribute("href");
+    }
+  } else {
+    sourceCard.hidden = true;
+  }
+}
+
 function renderDiscussionDetail() {
   const d = currentDiscussionDetail;
   if (!d) return;
 
   document.getElementById("discussDetailTitle").textContent = d.title;
+  updateDiscussionExternalUi(d);
 
-  const isOwner = sameUserId(authUser?.id, d.authorId);
+  const isOwner = !d.isExternal && sameUserId(authUser?.id, d.authorId);
   if (discussionEditing && isOwner) {
     document.getElementById("discussMainPost").innerHTML = `
       <form class="thread-edit-form" id="discussEditForm">

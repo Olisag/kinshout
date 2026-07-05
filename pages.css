@@ -389,6 +389,15 @@
   margin-bottom: 0.65rem;
 }
 
+.discuss-external-badge {
+  margin-top: -0.25rem;
+}
+
+.discussion-card--external .listing-source {
+  display: block;
+  margin-top: 0.35rem;
+}
+
 .ad-source-card {
   background: var(--surface);
   border: 1px solid var(--pill-border);
@@ -570,6 +579,10 @@
 .btn-whatsapp:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+.btn-whatsapp.btn-source-action {
+  background: var(--orange);
 }
 
 .ad-resume {
