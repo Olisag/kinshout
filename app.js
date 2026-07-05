@@ -665,6 +665,12 @@ function handleDeepLink() {
 }
 
 function listingImages(ad) {
+  if (Array.isArray(ad.thumbnails) && ad.thumbnails.length) return ad.thumbnails;
+  if (Array.isArray(ad.images) && ad.images.length) return ad.images;
+  return ad.image ? [ad.image] : [];
+}
+
+function listingFullImages(ad) {
   if (Array.isArray(ad.images) && ad.images.length) return ad.images;
   return ad.image ? [ad.image] : [];
 }
@@ -782,6 +788,7 @@ function apiAdvertToListing(ad) {
     category: ad.categoryId,
     intent: ad.intent,
     images: ad.imageUrls || [],
+    thumbnails: ad.thumbnailUrls?.length ? ad.thumbnailUrls : ad.imageUrls || [],
     resumeUrl: ad.resumeUrl,
     tags: ad.tags || [],
     description: ad.description,
@@ -1211,7 +1218,10 @@ function updateIntentFilterVisibility() {
 function renderListingThumb(listing) {
   const thumb = listingThumb(listing);
   if (thumb) {
-    return `<img class="listing-thumb" src="${thumb}" alt="" loading="lazy" />`;
+    const full = listingFullImages(listing)[0] ? displayImageUrl(listingFullImages(listing)[0]) : "";
+    const fallback =
+      full && full !== thumb ? ` onerror="this.onerror=null;this.src='${full.replace(/'/g, "%27")}'"` : "";
+    return `<img class="listing-thumb" src="${thumb}" alt="" loading="lazy" decoding="async"${fallback} />`;
   }
   const key = listing.intent === "offre" ? "offre" : "demande";
   return `<span class="listing-thumb listing-thumb--placeholder listing-thumb--${key}" aria-hidden="true">${
