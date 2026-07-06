@@ -74,7 +74,7 @@ public class SearchServiceCategoryTests
 
         openAi.Verify(
             x => x.SearchAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<Advert>>(), It.IsAny<IReadOnlyList<Discussion>>(), It.IsAny<CancellationToken>()),
-            Times.Once);
+            Times.Never);
 
         Assert.Equal(30, search.Pagination.TotalAdverts);
         Assert.Equal(30, list.TotalCount);
@@ -138,7 +138,7 @@ public class SearchServiceCategoryTests
         Assert.Equal("Appartement Gombe", result.Adverts[0].Title);
         openAi.Verify(
             x => x.SearchAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<Advert>>(), It.IsAny<IReadOnlyList<Discussion>>(), It.IsAny<CancellationToken>()),
-            Times.Once);
+            Times.Never);
     }
 
     [Fact]
@@ -254,6 +254,6 @@ public class SearchServiceCategoryTests
         Assert.Equal(4, result.Pagination.TotalDiscussions);
         openAi.Verify(
             x => x.SearchAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<Advert>>(), It.IsAny<IReadOnlyList<Discussion>>(), It.IsAny<CancellationToken>()),
-            Times.Once);
+            Times.Never);
     }
 }

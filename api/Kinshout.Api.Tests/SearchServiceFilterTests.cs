@@ -72,7 +72,7 @@ public class SearchServiceFilterTests
 
         var offre = CreateAdvert(user, category, "Offre advert", AdvertIntent.Offre);
         var discussionAdvert = CreateAdvert(user, category, "Discussion advert", AdvertIntent.Discussion);
-        var discussion = CreateDiscussion(user, category, "Forum thread");
+        var discussion = CreateDiscussion(user, category, "Forum thread quartier");
         db.Adverts.AddRange(offre, discussionAdvert);
         db.Discussions.Add(discussion);
         await db.SaveChangesAsync();
@@ -91,7 +91,7 @@ public class SearchServiceFilterTests
 
         Assert.Equal(2, result.Items!.Count);
         Assert.Contains(result.Items, i => i.Advert?.Title == "Discussion advert");
-        Assert.Contains(result.Items, i => i.Discussion?.Title == "Forum thread");
+        Assert.Contains(result.Items, i => i.Discussion?.Title == "Forum thread quartier");
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public class SearchServiceFilterTests
                 new AiSearchAnalysis(loaded.Select(a => a.Id).ToList(), [], ""));
 
         var service = new SearchService(db, openAi.Object, TestDbFactory.CreateMemoryCache(), TestDbFactory.CreateAdvertDtoMapper());
-        var result = await service.SearchAsync(new SearchRequestDto("appartement", "annonces", Source: "kinshout"));
+        var result = await service.SearchAsync(new SearchRequestDto("listing", "annonces", Source: "kinshout"));
 
         Assert.Single(result.Adverts);
         Assert.Equal("Kinshout listing", result.Adverts[0].Title);

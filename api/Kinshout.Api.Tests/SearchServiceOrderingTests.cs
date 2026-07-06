@@ -68,9 +68,9 @@ public class SearchServiceOrderingTests
         await using var db = TestDbFactory.Create();
         var (user, category) = await TestDbFactory.SeedUserAndCategoryAsync(db);
 
-        var activeOld = CreateDiscussion(user, category, "Active old", viewCount: 8, createdAt: DateTime.UtcNow.AddDays(-5));
-        var activeNew = CreateDiscussion(user, category, "Active new", viewCount: 8, createdAt: DateTime.UtcNow.AddDays(-1));
-        var quiet = CreateDiscussion(user, category, "Quiet recent", viewCount: 1, createdAt: DateTime.UtcNow);
+        var activeOld = CreateDiscussion(user, category, "Active old quartier", viewCount: 8, createdAt: DateTime.UtcNow.AddDays(-5));
+        var activeNew = CreateDiscussion(user, category, "Active new quartier", viewCount: 8, createdAt: DateTime.UtcNow.AddDays(-1));
+        var quiet = CreateDiscussion(user, category, "Quiet recent quartier", viewCount: 1, createdAt: DateTime.UtcNow);
         db.Discussions.AddRange(activeOld, activeNew, quiet);
         await db.SaveChangesAsync();
 
@@ -86,7 +86,7 @@ public class SearchServiceOrderingTests
         var service = new SearchService(db, openAi.Object, TestDbFactory.CreateMemoryCache(), TestDbFactory.CreateAdvertDtoMapper());
         var result = await service.SearchAsync(new SearchRequestDto("quartier", "discussions", PageSize: 10, Sort: ListSortHelper.Popular));
 
-        Assert.Equal(["Active new", "Active old", "Quiet recent"], result.Discussions.Select(d => d.Title).ToArray());
+        Assert.Equal(["Active new quartier", "Active old quartier", "Quiet recent quartier"], result.Discussions.Select(d => d.Title).ToArray());
     }
 
     private static Advert CreateAdvert(

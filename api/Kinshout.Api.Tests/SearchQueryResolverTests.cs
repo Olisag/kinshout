@@ -9,10 +9,11 @@ public class SearchQueryResolverTests
     [InlineData("Appartements a louer", "immobilier", null, null)]
     [InlineData("Appartements à louer", "immobilier", null, null)]
     [InlineData("Immobilier", "immobilier", null, null)]
-    [InlineData("iPhone Kinshasa", "telephones", null, null)]
+    [InlineData("iPhone Kinshasa", "telephones", null, "Kinshasa")]
     [InlineData("Voiture Toyota", "vehicules", null, null)]
     [InlineData("appartement Gombe", "immobilier", "appartement_a_louer", "Gombe")]
-    [InlineData("Football Kinshasa", null, null, null, "sport")]
+    [InlineData("Kinshasa", null, null, "Kinshasa")]
+    [InlineData("Football Kinshasa", null, null, "Kinshasa", "sport")]
     [InlineData("Politique", null, null, null, "politique")]
     public void Parse_ResolvesAdvertAndDiscussionQueries(
         string query,
