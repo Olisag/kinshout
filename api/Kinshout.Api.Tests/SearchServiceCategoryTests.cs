@@ -64,7 +64,7 @@ public class SearchServiceCategoryTests
 
         var service = new SearchService(db, openAi.Object, TestDbFactory.CreateMemoryCache(), TestDbFactory.CreateAdvertDtoMapper());
 
-        var search = await service.SearchAsync(new SearchRequestDto("Appartements a louer", "annonces", PageSize: 50));
+        var search = await service.SearchAsync(new SearchRequestDto("", "annonces", PageSize: 50, CategoryId: immobilier.Id));
         var list = await new AdvertService(
             db,
             Mock.Of<IOpenAiService>(),
@@ -249,7 +249,7 @@ public class SearchServiceCategoryTests
 
         var service = new SearchService(db, openAi.Object, TestDbFactory.CreateMemoryCache(), TestDbFactory.CreateAdvertDtoMapper());
 
-        var result = await service.SearchAsync(new SearchRequestDto("Sport & foot", "discussions"));
+        var result = await service.SearchAsync(new SearchRequestDto("", "discussions", TopicId: sport.Id));
 
         Assert.Equal(4, result.Pagination.TotalDiscussions);
         openAi.Verify(

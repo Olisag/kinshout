@@ -32,7 +32,7 @@ public class SearchServiceOrderingTests
         var service = new SearchService(db, openAi.Object, TestDbFactory.CreateMemoryCache(), TestDbFactory.CreateAdvertDtoMapper());
         var result = await service.SearchAsync(new SearchRequestDto("appartement", "annonces", PageSize: 10, Sort: ListSortHelper.Popular));
 
-        Assert.Equal(["Popular new", "Popular old", "Recent quiet"], result.Adverts.Select(a => a.Title).ToArray());
+        Assert.Equal(["Popular new appartement", "Popular old appartement", "Recent quiet appartement"], result.Adverts.Select(a => a.Title).ToArray());
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class SearchServiceOrderingTests
         var service = new SearchService(db, openAi.Object, TestDbFactory.CreateMemoryCache(), TestDbFactory.CreateAdvertDtoMapper());
         var result = await service.SearchAsync(new SearchRequestDto("appartement", "annonces", PageSize: 10, Sort: ListSortHelper.Recent));
 
-        Assert.Equal(["Recent quiet", "Popular new", "Popular old"], result.Adverts.Select(a => a.Title).ToArray());
+        Assert.Equal(["Recent quiet appartement", "Popular new appartement", "Popular old appartement"], result.Adverts.Select(a => a.Title).ToArray());
     }
 
     [Fact]
@@ -100,8 +100,8 @@ public class SearchServiceOrderingTests
         {
             UserId = user.Id,
             CategoryId = category.Id,
-            Title = title,
-            Description = "Description",
+            Title = $"{title} appartement",
+            Description = "Appartement à louer",
             Location = "Gombe",
             ViewCount = viewCount,
             CreatedAt = createdAt,
