@@ -103,9 +103,13 @@ public static partial class SearchQueryParser
 
     private static (Regex Pattern, string Intent)[] OfferPatterns =>
     [
+        (FrenchOffreDeService(), SearchIntentHelper.Offre),
+        (FrenchOffreDe(), SearchIntentHelper.Offre),
         (FrenchJeVends(), SearchIntentHelper.Offre),
         (FrenchJePropose(), SearchIntentHelper.Offre),
         (FrenchAVendre(), SearchIntentHelper.Offre),
+        (FrenchVenteDe(), SearchIntentHelper.Offre),
+        (FrenchVente(), SearchIntentHelper.Offre),
         (EnglishSelling(), SearchIntentHelper.Offre),
         (EnglishForSale(), SearchIntentHelper.Offre),
         (LingalaNazaliKoteka(), SearchIntentHelper.Offre),
@@ -142,6 +146,12 @@ public static partial class SearchQueryParser
     [GeneratedRegex(@"^nazali kolinga\s+(?:(?:moko|moko ya)\s+)?(?<subject>.+)$", RegexOptions.CultureInvariant)]
     private static partial Regex LingalaNazaliKolinga();
 
+    [GeneratedRegex(@"^offre\s+(?:de\s+)?service(?:s)?\s+(?:de\s+|d\s+)?(?<subject>.+)$", RegexOptions.CultureInvariant)]
+    private static partial Regex FrenchOffreDeService();
+
+    [GeneratedRegex(@"^offre\s+(?:de\s+|d\s+)?(?<subject>.+)$", RegexOptions.CultureInvariant)]
+    private static partial Regex FrenchOffreDe();
+
     [GeneratedRegex(@"^je vends\s+(?:(?:un|une|des|mon|ma|mes)\s+)?(?<subject>.+)$", RegexOptions.CultureInvariant)]
     private static partial Regex FrenchJeVends();
 
@@ -150,6 +160,12 @@ public static partial class SearchQueryParser
 
     [GeneratedRegex(@"^(?<subject>.+)\s+a vendre$", RegexOptions.CultureInvariant)]
     private static partial Regex FrenchAVendre();
+
+    [GeneratedRegex(@"^vente\s+(?:de|des|du|d)\s+(?<subject>.+)$", RegexOptions.CultureInvariant)]
+    private static partial Regex FrenchVenteDe();
+
+    [GeneratedRegex(@"^vente\s+(?<subject>.+)$", RegexOptions.CultureInvariant)]
+    private static partial Regex FrenchVente();
 
     [GeneratedRegex(@"^selling\s+(?:(?:a|an|my|the)\s+)?(?<subject>.+)$", RegexOptions.CultureInvariant)]
     private static partial Regex EnglishSelling();

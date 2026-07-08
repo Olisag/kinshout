@@ -225,8 +225,7 @@ public class SearchService(
 
         if (request.Tab.Equals("annonces", StringComparison.OrdinalIgnoreCase))
             return [];
-        if (!string.IsNullOrWhiteSpace(request.Intent)
-            && request.Intent is SearchIntentHelper.Offre or SearchIntentHelper.Demande)
+        if (!SearchDiscussionScope.ShouldSearchDiscussions(request, hints, query))
             return [];
         if (isTopicBrowse)
             return await LoadDiscussionsByTopicIdAsync(context, request.TopicId!.Value, ct);
@@ -354,12 +353,32 @@ public class SearchService(
         SearchRequestDto request,
         CancellationToken ct)
     {
+        var strict = await LoadSemanticAdvertsWithHintsAsync(context, memoryCache, query, hints, request, ct);
+        if (strict.Count > 0 || !HasStructuredHints(hints))
+            return strict;
+
+        return await LoadSemanticAdvertsWithHintsAsync(context, memoryCache, query, new SearchQueryHints(), request, ct);
+    }
+
+    private static async Task<List<Advert>> LoadSemanticAdvertsWithHintsAsync(
+        KinshoutDbContext context,
+        IMemoryCache memoryCache,
+        string query,
+        SearchQueryHints hints,
+        SearchRequestDto request,
+        CancellationToken ct)
+    {
         IQueryable<Advert> advertQuery = context.Adverts
             .AsNoTracking()
             .Include(a => a.Category)
             .Include(a => a.User)
             .Where(a => a.IsPublished);
         advertQuery = ApplyRequestAdvertFilters(advertQuery, request);
+        if (!string.IsNullOrWhiteSpace(hints.ParentCategorySlug))
+        {
+            var categorySlugs = SearchQueryResolver.CategorySlugsForParent(hints.ParentCategorySlug);
+            advertQuery = advertQuery.Where(a => a.Category != null && categorySlugs.Contains(a.Category.Slug));
+        }
         if (!string.IsNullOrWhiteSpace(hints.SubcategorySlug))
             advertQuery = advertQuery.Where(a => a.SubcategorySlug == hints.SubcategorySlug);
         foreach (var location in hints.LocationTerms)
@@ -371,6 +390,11 @@ public class SearchService(
 
         return await SearchRetrieval.LoadSemanticAdvertsAsync(context, advertQuery, query, memoryCache, ct);
     }
+
+    private static bool HasStructuredHints(SearchQueryHints hints) =>
+        hints.LocationTerms.Count > 0
+        || !string.IsNullOrWhiteSpace(hints.SubcategorySlug)
+        || !string.IsNullOrWhiteSpace(hints.ParentCategorySlug);
 
     private static async Task<List<Discussion>> LoadDiscussionsByTopicIdAsync(
         KinshoutDbContext context,
@@ -385,6 +409,20 @@ public class SearchService(
             .ToListAsync(ct);
 
     private static async Task<List<Discussion>> LoadSemanticDiscussionsAsync(
+        KinshoutDbContext context,
+        IMemoryCache memoryCache,
+        string query,
+        SearchQueryHints hints,
+        CancellationToken ct)
+    {
+        var strict = await LoadSemanticDiscussionsWithHintsAsync(context, memoryCache, query, hints, ct);
+        if (strict.Count > 0 || !HasStructuredHints(hints))
+            return strict;
+
+        return await LoadSemanticDiscussionsWithHintsAsync(context, memoryCache, query, new SearchQueryHints(), ct);
+    }
+
+    private static async Task<List<Discussion>> LoadSemanticDiscussionsWithHintsAsync(
         KinshoutDbContext context,
         IMemoryCache memoryCache,
         string query,
@@ -593,16 +631,32 @@ public class SearchService(
         {
 
             entry.AbsoluteExpirationRelativeToNow = PopularSearchesCacheDuration;
-            var query = db.SearchQueryStats
-                .AsNoTracking()
-                .OrderByDescending(s => s.SearchCount)
-                .ThenByDescending(s => s.LastSearchedAt);
-            var total = await query.CountAsync(ct);
-            var items = await query
+            var rows = await db.SearchQueryStats.AsNoTracking().ToListAsync(ct);
+            var grouped = rows
+                .GroupBy(SearchQueryHelper.ResolveStatKey, StringComparer.Ordinal)
+                .Select(g =>
+                {
+                    var keeper = g
+                        .OrderByDescending(s => s.LastSearchedAt)
+                        .ThenByDescending(s => s.SearchCount)
+                        .First();
+                    return new
+                    {
+                        keeper.DisplayQuery,
+                        Count = g.Sum(s => s.SearchCount),
+                        LastSearchedAt = g.Max(s => s.LastSearchedAt),
+                    };
+                })
+                .OrderByDescending(x => x.Count)
+                .ThenByDescending(x => x.LastSearchedAt)
+                .ToList();
+
+            var total = grouped.Count;
+            var items = grouped
                 .Skip((normalizedPage - 1) * normalizedPageSize)
                 .Take(normalizedPageSize)
-                .Select(s => new PopularSearchDto(s.DisplayQuery, s.SearchCount))
-                .ToListAsync(ct);
+                .Select(x => new PopularSearchDto(x.DisplayQuery, x.Count))
+                .ToList();
             return PagingHelper.Create(items, normalizedPage, normalizedPageSize, total);
 
         }) ?? PagingHelper.Create(Array.Empty<PopularSearchDto>(), normalizedPage, normalizedPageSize, 0);

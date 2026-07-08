@@ -87,6 +87,9 @@ public static partial class SearchQueryHelper
 
     public static string? Normalize(string? query) => CanonicalKey(query);
 
+    internal static string ResolveStatKey(Models.SearchQueryStat row) =>
+        CanonicalKey(row.DisplayQuery) ?? CanonicalKey(row.NormalizedQuery) ?? row.NormalizedQuery;
+
     public static string? CanonicalKey(string? query)
     {
         if (string.IsNullOrWhiteSpace(query))
@@ -126,7 +129,14 @@ public static partial class SearchQueryHelper
         return TokenAliases.TryGetValue(token, out var alias) ? alias : token;
     }
 
-    private static string NormalizeToken(string token) => CanonicalizeToken(token);
+    private static string NormalizeToken(string token)
+    {
+        token = RemoveDiacritics(token.ToLowerInvariant());
+        if (token.Length <= 2)
+            return token;
+
+        return SearchSpellingNormalizer.CanonicalizeToken(token);
+    }
 
     private static string Singularize(string token)
     {
