@@ -18,11 +18,12 @@ public static class SearchRetrieval
         KinshoutDbContext db,
         IQueryable<Advert> baseQuery,
         string query,
+        SearchQueryHints hints,
         IMemoryCache? cache,
         CancellationToken ct)
     {
-        var terms = SearchMatchHelper.ExtractTerms(query);
-        var filtered = ApplyAdvertTextFilter(baseQuery, terms);
+        var terms = SearchMatchHelper.ExtractTerms(query, hints);
+        var filtered = ApplyAdvertTextFilter(db, baseQuery, terms);
 
         if (await IsFullTextAvailableAsync(db, cache, ct))
         {
@@ -38,18 +39,20 @@ public static class SearchRetrieval
             }
         }
 
-        return await LoadAdvertsWithLocalRankAsync(filtered, query, ct);
+        return await LoadAdvertsWithLocalRankAsync(filtered, query, hints, ct);
     }
 
     public static async Task<List<Discussion>> LoadSemanticDiscussionsAsync(
         KinshoutDbContext db,
         IQueryable<Discussion> baseQuery,
         string query,
+        SearchQueryHints hints,
         IMemoryCache? cache,
         CancellationToken ct)
     {
-        var terms = SearchMatchHelper.ExtractTerms(query);
-        var filtered = ApplyDiscussionTextFilter(baseQuery, terms, query);
+        var terms = SearchMatchHelper.ExtractTerms(query, hints);
+        var subjectQuery = string.IsNullOrWhiteSpace(hints.SubjectText) ? query : hints.SubjectText;
+        var filtered = ApplyDiscussionTextFilter(db, baseQuery, terms, subjectQuery);
 
         if (await IsFullTextAvailableAsync(db, cache, ct))
         {
@@ -65,14 +68,149 @@ public static class SearchRetrieval
             }
         }
 
-        return await LoadDiscussionsWithLocalRankAsync(filtered, query, ct);
+        return await LoadDiscussionsWithLocalRankAsync(filtered, query, hints, ct);
     }
 
-    public static IQueryable<Advert> ApplyAdvertTextFilter(IQueryable<Advert> query, IReadOnlyList<string> terms)
+    public static IQueryable<Advert> ApplyAdvertTextFilter(
+        KinshoutDbContext db,
+        IQueryable<Advert> query,
+        IReadOnlyList<string> terms)
     {
         if (terms.Count == 0)
             return query;
 
+        if (!SearchDbTextFilter.SupportsAccentInsensitiveSql(db))
+        {
+            if (terms.Count == 1)
+                return SearchDbTextFilter.WhereAdvertTextContains(query, db, terms[0]);
+
+            return ApplyAdvertTextFilterFallback(query, terms);
+        }
+
+        if (terms.Count == 1)
+            return SearchDbTextFilter.WhereAdvertTextContains(query, db, terms[0]);
+
+        const string collation = "Latin1_General_CI_AI";
+        var t0 = terms[0].ToLowerInvariant();
+        var t1 = terms[1].ToLowerInvariant();
+        if (terms.Count == 2)
+        {
+            return query.Where(a =>
+                EF.Functions.Collate(a.Title, collation).Contains(t0)
+                || EF.Functions.Collate(a.Description, collation).Contains(t0)
+                || (a.Location != null && EF.Functions.Collate(a.Location, collation).Contains(t0))
+                || (a.TagsJson != null && EF.Functions.Collate(a.TagsJson, collation).Contains(t0))
+                || (a.SubcategorySlug != null && EF.Functions.Collate(a.SubcategorySlug, collation).Contains(t0))
+                || EF.Functions.Collate(a.Title, collation).Contains(t1)
+                || EF.Functions.Collate(a.Description, collation).Contains(t1)
+                || (a.Location != null && EF.Functions.Collate(a.Location, collation).Contains(t1))
+                || (a.TagsJson != null && EF.Functions.Collate(a.TagsJson, collation).Contains(t1))
+                || (a.SubcategorySlug != null && EF.Functions.Collate(a.SubcategorySlug, collation).Contains(t1)));
+        }
+
+        var t2 = terms[2].ToLowerInvariant();
+        if (terms.Count == 3)
+        {
+            return query.Where(a =>
+                EF.Functions.Collate(a.Title, collation).Contains(t0)
+                || EF.Functions.Collate(a.Description, collation).Contains(t0)
+                || (a.Location != null && EF.Functions.Collate(a.Location, collation).Contains(t0))
+                || EF.Functions.Collate(a.Title, collation).Contains(t1)
+                || EF.Functions.Collate(a.Description, collation).Contains(t1)
+                || (a.Location != null && EF.Functions.Collate(a.Location, collation).Contains(t1))
+                || EF.Functions.Collate(a.Title, collation).Contains(t2)
+                || EF.Functions.Collate(a.Description, collation).Contains(t2)
+                || (a.Location != null && EF.Functions.Collate(a.Location, collation).Contains(t2)));
+        }
+
+        var t3 = terms[3].ToLowerInvariant();
+        return query.Where(a =>
+            EF.Functions.Collate(a.Title, collation).Contains(t0)
+            || EF.Functions.Collate(a.Description, collation).Contains(t0)
+            || EF.Functions.Collate(a.Title, collation).Contains(t1)
+            || EF.Functions.Collate(a.Description, collation).Contains(t1)
+            || EF.Functions.Collate(a.Title, collation).Contains(t2)
+            || EF.Functions.Collate(a.Description, collation).Contains(t2)
+            || EF.Functions.Collate(a.Title, collation).Contains(t3)
+            || EF.Functions.Collate(a.Description, collation).Contains(t3));
+    }
+
+    public static IQueryable<Discussion> ApplyDiscussionTextFilter(
+        KinshoutDbContext db,
+        IQueryable<Discussion> query,
+        IReadOnlyList<string> terms,
+        string? originalQuery = null)
+    {
+        if (!SearchDbTextFilter.SupportsAccentInsensitiveSql(db))
+            return query;
+
+        var subject = SearchQueryParser.Parse(originalQuery).SubjectText;
+        if (string.IsNullOrWhiteSpace(subject))
+            subject = originalQuery ?? string.Empty;
+
+        var requiredTerms = SearchTermExpander.ExtractRawTerms(subject);
+        if (requiredTerms.Count == 0 && !string.IsNullOrWhiteSpace(originalQuery))
+            requiredTerms = SearchTermExpander.ExtractRawTerms(originalQuery);
+        if (requiredTerms.Count >= 2)
+            return ApplyDiscussionAndFilter(db, query, requiredTerms);
+
+        if (terms.Count == 0)
+            return query;
+
+        if (terms.Count == 1)
+            return SearchDbTextFilter.WhereTitleOrBodyContains(query, db, terms[0]);
+
+        const string collation = "Latin1_General_CI_AI";
+        var t0 = terms[0].ToLowerInvariant();
+        var t1 = terms[1].ToLowerInvariant();
+        if (terms.Count == 2)
+        {
+            return query.Where(d =>
+                EF.Functions.Collate(d.Title, collation).Contains(t0)
+                || EF.Functions.Collate(d.Body, collation).Contains(t0)
+                || EF.Functions.Collate(d.Title, collation).Contains(t1)
+                || EF.Functions.Collate(d.Body, collation).Contains(t1));
+        }
+
+        var t2 = terms[2].ToLowerInvariant();
+        if (terms.Count == 3)
+        {
+            return query.Where(d =>
+                EF.Functions.Collate(d.Title, collation).Contains(t0)
+                || EF.Functions.Collate(d.Body, collation).Contains(t0)
+                || EF.Functions.Collate(d.Title, collation).Contains(t1)
+                || EF.Functions.Collate(d.Body, collation).Contains(t1)
+                || EF.Functions.Collate(d.Title, collation).Contains(t2)
+                || EF.Functions.Collate(d.Body, collation).Contains(t2));
+        }
+
+        var t3 = terms[3].ToLowerInvariant();
+        return query.Where(d =>
+            EF.Functions.Collate(d.Title, collation).Contains(t0)
+            || EF.Functions.Collate(d.Body, collation).Contains(t0)
+            || EF.Functions.Collate(d.Title, collation).Contains(t1)
+            || EF.Functions.Collate(d.Body, collation).Contains(t1)
+            || EF.Functions.Collate(d.Title, collation).Contains(t2)
+            || EF.Functions.Collate(d.Body, collation).Contains(t2)
+            || EF.Functions.Collate(d.Title, collation).Contains(t3)
+            || EF.Functions.Collate(d.Body, collation).Contains(t3));
+    }
+
+    private static IQueryable<Discussion> ApplyDiscussionAndFilter(
+        KinshoutDbContext db,
+        IQueryable<Discussion> query,
+        IReadOnlyList<string> requiredTerms)
+    {
+        foreach (var term in requiredTerms.Take(4))
+            query = SearchDbTextFilter.WhereTitleOrBodyContains(query, db, term);
+
+        return query;
+    }
+
+    private static IQueryable<Advert> ApplyAdvertTextFilterFallback(
+        IQueryable<Advert> query,
+        IReadOnlyList<string> terms)
+    {
         if (terms.Count == 1)
         {
             var term = terms[0].ToLowerInvariant();
@@ -119,72 +257,10 @@ public static class SearchRetrieval
             || a.Title.ToLower().Contains(t3) || a.Description.ToLower().Contains(t3));
     }
 
-    public static IQueryable<Discussion> ApplyDiscussionTextFilter(
-        IQueryable<Discussion> query,
-        IReadOnlyList<string> terms,
-        string? originalQuery = null)
-    {
-        var subject = SearchQueryParser.Parse(originalQuery).SubjectText;
-        if (string.IsNullOrWhiteSpace(subject))
-            subject = originalQuery ?? string.Empty;
-
-        var requiredTerms = SearchTermExpander.ExtractRawTerms(subject);
-        if (requiredTerms.Count == 0 && !string.IsNullOrWhiteSpace(originalQuery))
-            requiredTerms = SearchTermExpander.ExtractRawTerms(originalQuery);
-        if (requiredTerms.Count >= 2)
-            return ApplyDiscussionAndFilter(query, requiredTerms);
-
-        if (terms.Count == 0)
-            return query;
-
-        if (terms.Count == 1)
-        {
-            var term = terms[0].ToLowerInvariant();
-            return query.Where(d => d.Title.ToLower().Contains(term) || d.Body.ToLower().Contains(term));
-        }
-
-        var t0 = terms[0].ToLowerInvariant();
-        var t1 = terms[1].ToLowerInvariant();
-        if (terms.Count == 2)
-        {
-            return query.Where(d =>
-                d.Title.ToLower().Contains(t0) || d.Body.ToLower().Contains(t0)
-                || d.Title.ToLower().Contains(t1) || d.Body.ToLower().Contains(t1));
-        }
-
-        var t2 = terms[2].ToLowerInvariant();
-        if (terms.Count == 3)
-        {
-            return query.Where(d =>
-                d.Title.ToLower().Contains(t0) || d.Body.ToLower().Contains(t0)
-                || d.Title.ToLower().Contains(t1) || d.Body.ToLower().Contains(t1)
-                || d.Title.ToLower().Contains(t2) || d.Body.ToLower().Contains(t2));
-        }
-
-        var t3 = terms[3].ToLowerInvariant();
-        return query.Where(d =>
-            d.Title.ToLower().Contains(t0) || d.Body.ToLower().Contains(t0)
-            || d.Title.ToLower().Contains(t1) || d.Body.ToLower().Contains(t1)
-            || d.Title.ToLower().Contains(t2) || d.Body.ToLower().Contains(t2)
-            || d.Title.ToLower().Contains(t3) || d.Body.ToLower().Contains(t3));
-    }
-
-    private static IQueryable<Discussion> ApplyDiscussionAndFilter(
-        IQueryable<Discussion> query,
-        IReadOnlyList<string> requiredTerms)
-    {
-        foreach (var term in requiredTerms.Take(4))
-        {
-            var t = term.ToLowerInvariant();
-            query = query.Where(d => d.Title.ToLower().Contains(t) || d.Body.ToLower().Contains(t));
-        }
-
-        return query;
-    }
-
     private static async Task<List<Advert>> LoadAdvertsWithLocalRankAsync(
         IQueryable<Advert> filtered,
         string query,
+        SearchQueryHints hints,
         CancellationToken ct)
     {
         var candidates = await filtered
@@ -193,7 +269,7 @@ public static class SearchRetrieval
             .Include(a => a.User)
             .ToListAsync(ct);
 
-        var rankedIds = SearchMatchHelper.RankAdvertIds(query, candidates).Take(RetrieveCap).ToList();
+        var rankedIds = SearchMatchHelper.RankAdvertIds(query, candidates, hints).Take(RetrieveCap).ToList();
         if (rankedIds.Count == 0)
             return [];
 
@@ -204,6 +280,7 @@ public static class SearchRetrieval
     private static async Task<List<Discussion>> LoadDiscussionsWithLocalRankAsync(
         IQueryable<Discussion> filtered,
         string query,
+        SearchQueryHints hints,
         CancellationToken ct)
     {
         var candidates = await filtered
@@ -212,7 +289,7 @@ public static class SearchRetrieval
             .Include(d => d.Category)
             .ToListAsync(ct);
 
-        var rankedIds = SearchMatchHelper.RankDiscussionIds(query, candidates).Take(RetrieveCap).ToList();
+        var rankedIds = SearchMatchHelper.RankDiscussionIds(query, candidates, hints).Take(RetrieveCap).ToList();
         if (rankedIds.Count == 0)
             return [];
 

@@ -43,7 +43,7 @@ public class SearchService(
                 QueueRecordSearchQuery(query);
         }
 
-        var hints = SearchQueryHints(isSemanticSearch, query);
+        var hints = await ResolveSearchHintsAsync(isSemanticSearch, query, ct);
         var browseCategory = isAdvertBrowse
             ? await db.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.Id == request.CategoryId, ct)
             : null;
@@ -142,8 +142,13 @@ public class SearchService(
     private static bool IsExplicitTopicBrowse(SearchRequestDto request) =>
         request.TopicId is not null && string.IsNullOrWhiteSpace(request.Query);
 
-    private static SearchQueryHints SearchQueryHints(bool isSemanticSearch, string query) =>
-        isSemanticSearch ? SearchQueryResolver.ParseHints(query) : new SearchQueryHints();
+    private async Task<SearchQueryHints> ResolveSearchHintsAsync(
+        bool isSemanticSearch,
+        string query,
+        CancellationToken ct) =>
+        isSemanticSearch
+            ? await SearchQueryUnderstanding.ResolveAsync(query, openAi, cache, ct)
+            : new SearchQueryHints();
 
     private async Task<List<Advert>> LoadAdvertsInScopeAsync(
         SearchRequestDto request,
@@ -256,7 +261,9 @@ public class SearchService(
                 BuildBrowseSummary(browseCategory, browseTopic, adverts.Count, discussions.Count));
         }
 
-        var local = SearchMatchHelper.Rank(query, adverts, discussions);
+        var local = SearchMatchHelper.Rank(query, adverts, discussions, hints);
+        if (hints.UsedAiUnderstanding && (local.AdvertIds.Count > 0 || local.DiscussionIds.Count > 0))
+            return local;
         if (ShouldUseLocalRankOnly(query, hints, adverts, discussions, local))
             return local;
         if (adverts.Count == 0 && local.DiscussionIds.Count > 0)
@@ -357,7 +364,13 @@ public class SearchService(
         if (strict.Count > 0 || !HasStructuredHints(hints))
             return strict;
 
-        return await LoadSemanticAdvertsWithHintsAsync(context, memoryCache, query, new SearchQueryHints(), request, ct);
+        return await LoadSemanticAdvertsWithHintsAsync(
+            context,
+            memoryCache,
+            query,
+            PreserveUnderstandingHints(hints),
+            request,
+            ct);
     }
 
     private static async Task<List<Advert>> LoadSemanticAdvertsWithHintsAsync(
@@ -382,19 +395,22 @@ public class SearchService(
         if (!string.IsNullOrWhiteSpace(hints.SubcategorySlug))
             advertQuery = advertQuery.Where(a => a.SubcategorySlug == hints.SubcategorySlug);
         foreach (var location in hints.LocationTerms)
-        {
-            var term = location.ToLowerInvariant();
-            advertQuery = advertQuery.Where(a =>
-                a.Location != null && a.Location.ToLower().Contains(term));
-        }
+            advertQuery = SearchDbTextFilter.WhereAdvertLocationContains(advertQuery, context, location);
 
-        return await SearchRetrieval.LoadSemanticAdvertsAsync(context, advertQuery, query, memoryCache, ct);
+        return await SearchRetrieval.LoadSemanticAdvertsAsync(context, advertQuery, query, hints, memoryCache, ct);
     }
 
     private static bool HasStructuredHints(SearchQueryHints hints) =>
-        hints.LocationTerms.Count > 0
-        || !string.IsNullOrWhiteSpace(hints.SubcategorySlug)
-        || !string.IsNullOrWhiteSpace(hints.ParentCategorySlug);
+        hints.HasStructuredFilters;
+
+    private static SearchQueryHints PreserveUnderstandingHints(SearchQueryHints hints) =>
+        new()
+        {
+            SubjectText = hints.SubjectText,
+            IntentHint = hints.IntentHint,
+            RetrievalTerms = hints.RetrievalTerms,
+            UsedAiUnderstanding = hints.UsedAiUnderstanding,
+        };
 
     private static async Task<List<Discussion>> LoadDiscussionsByTopicIdAsync(
         KinshoutDbContext context,
@@ -419,7 +435,12 @@ public class SearchService(
         if (strict.Count > 0 || !HasStructuredHints(hints))
             return strict;
 
-        return await LoadSemanticDiscussionsWithHintsAsync(context, memoryCache, query, new SearchQueryHints(), ct);
+        return await LoadSemanticDiscussionsWithHintsAsync(
+            context,
+            memoryCache,
+            query,
+            PreserveUnderstandingHints(hints),
+            ct);
     }
 
     private static async Task<List<Discussion>> LoadSemanticDiscussionsWithHintsAsync(
@@ -431,13 +452,9 @@ public class SearchService(
     {
         IQueryable<Discussion> discussionQuery = context.Discussions.AsNoTracking();
         foreach (var location in hints.LocationTerms)
-        {
-            var term = location.ToLowerInvariant();
-            discussionQuery = discussionQuery.Where(d =>
-                d.Title.ToLower().Contains(term) || d.Body.ToLower().Contains(term));
-        }
+            discussionQuery = SearchDbTextFilter.WhereTitleOrBodyContains(discussionQuery, context, location);
 
-        return await SearchRetrieval.LoadSemanticDiscussionsAsync(context, discussionQuery, query, memoryCache, ct);
+        return await SearchRetrieval.LoadSemanticDiscussionsAsync(context, discussionQuery, query, hints, memoryCache, ct);
     }
 
     private static IQueryable<Advert> ApplyRequestAdvertFilters(IQueryable<Advert> query, SearchRequestDto request)
@@ -589,19 +606,19 @@ public class SearchService(
         CancellationToken ct)
     {
 
-        var normalized = SearchQueryHelper.Normalize(query);
-        if (normalized is null)
+        var phraseKey = SearchQueryHelper.PhraseKey(query);
+        if (phraseKey is null)
             return;
         var display = SearchQueryHelper.Display(query);
         var existing = await db.SearchQueryStats
-            .FirstOrDefaultAsync(s => s.NormalizedQuery == normalized, ct);
+            .FirstOrDefaultAsync(s => s.NormalizedQuery == phraseKey, ct);
         if (existing is null)
         {
 
             db.SearchQueryStats.Add(new SearchQueryStat
             {
 
-                NormalizedQuery = normalized,
+                NormalizedQuery = phraseKey,
                 DisplayQuery = display,
 
             });
@@ -632,30 +649,13 @@ public class SearchService(
 
             entry.AbsoluteExpirationRelativeToNow = PopularSearchesCacheDuration;
             var rows = await db.SearchQueryStats.AsNoTracking().ToListAsync(ct);
-            var grouped = rows
-                .GroupBy(SearchQueryHelper.ResolveStatKey, StringComparer.Ordinal)
-                .Select(g =>
-                {
-                    var keeper = g
-                        .OrderByDescending(s => s.LastSearchedAt)
-                        .ThenByDescending(s => s.SearchCount)
-                        .First();
-                    return new
-                    {
-                        keeper.DisplayQuery,
-                        Count = g.Sum(s => s.SearchCount),
-                        LastSearchedAt = g.Max(s => s.LastSearchedAt),
-                    };
-                })
-                .OrderByDescending(x => x.Count)
-                .ThenByDescending(x => x.LastSearchedAt)
-                .ToList();
+            var grouped = PopularSearchGrouper.Aggregate(rows);
 
             var total = grouped.Count;
             var items = grouped
                 .Skip((normalizedPage - 1) * normalizedPageSize)
                 .Take(normalizedPageSize)
-                .Select(x => new PopularSearchDto(x.DisplayQuery, x.Count))
+                .Select(x => new PopularSearchDto(x.DisplayLabel, x.Count))
                 .ToList();
             return PagingHelper.Create(items, normalizedPage, normalizedPageSize, total);
 
