@@ -24,6 +24,16 @@ public interface IDiscussionService
         int pageSize = PagingHelper.DefaultPageSize,
         string filter = DiscussionMineFilterHelper.All,
         CancellationToken ct = default);
+    /// <summary>
+    /// Public profile: discussions authored by <paramref name="userId"/> with public visibility.
+    /// Throws <see cref="KeyNotFoundException"/> when the profile is private or missing.
+    /// </summary>
+    Task<PagedResultDto<DiscussionDto>> ListPublicByUserAsync(
+        Guid userId,
+        int page = 1,
+        int pageSize = PagingHelper.DefaultPageSize,
+        Guid? viewerUserId = null,
+        CancellationToken ct = default);
     Task<DiscussionDetailDto?> GetByIdAsync(
         Guid id,
         int page = 1,
@@ -43,6 +53,15 @@ public interface IDiscussionService
         UpdateReplyRequestDto request,
         CancellationToken ct = default);
     Task DeleteReplyAsync(Guid userId, Guid discussionId, Guid replyId, CancellationToken ct = default);
+    Task RequestJoinAsync(Guid userId, Guid discussionId, CancellationToken ct = default);
+    Task ApproveParticipantAsync(Guid actorUserId, Guid discussionId, Guid targetUserId, CancellationToken ct = default);
+    Task RejectParticipantAsync(Guid actorUserId, Guid discussionId, Guid targetUserId, CancellationToken ct = default);
+    Task<PagedResultDto<DiscussionParticipantDto>> ListPendingParticipantsAsync(
+        Guid actorUserId,
+        Guid discussionId,
+        int page = 1,
+        int pageSize = PagingHelper.DefaultPageSize,
+        CancellationToken ct = default);
 }
 
 public class DiscussionService(
@@ -50,6 +69,9 @@ public class DiscussionService(
     IOpenAiService openAi,
     IAdvertModerationService moderation,
     IUploadStorage storage,
+    ICommunityService communities,
+    IDiscussionParticipationService participation,
+    IVideoService videos,
     IMemoryCache cache) : IDiscussionService
 {
     public async Task<PagedResultDto<DiscussionDto>> ListAsync(
@@ -64,6 +86,18 @@ public class DiscussionService(
         CancellationToken ct = default)
     {
         var (normalizedPage, normalizedPageSize) = PagingHelper.Normalize(page, pageSize);
+
+        if (communityId is not null)
+            await communities.EnsureCanAccessAsync(communityId.Value, viewerUserId, ct);
+
+        if (!string.IsNullOrWhiteSpace(communitySlug))
+        {
+            var slug = CommunitySlugHelper.Normalize(communitySlug);
+            var filteredCommunity = await db.Communities.AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Slug == slug, ct)
+                ?? throw new ArgumentException($"Communauté k/{slug} introuvable.");
+            await communities.EnsureCanAccessAsync(filteredCommunity.Id, viewerUserId, ct);
+        }
 
         var q = db.Discussions
             .AsNoTracking()
@@ -90,6 +124,8 @@ public class DiscussionService(
             q = q.Where(d => d.Title.ToLower().Contains(lower) || d.Body.ToLower().Contains(lower));
         }
 
+        q = DiscussionVisibilityFilter.WhereVisibleTo(q, db, viewerUserId);
+
         var ordered = ListSortHelper.IsPopular(sort)
             ? DiscussionSourceMapper.OrderByPopular(q)
             : q.OrderByDescending(d => d.CreatedAt);
@@ -101,8 +137,14 @@ public class DiscussionService(
             .ToListAsync(ct);
 
         var likedIds = await LoadLikedDiscussionIdsAsync(db, viewerUserId, items.Select(d => d.Id), ct);
+        var videoAssets = await LoadVideoAssetsByStorageUrlAsync(items, ct);
+        var communityMemberIds = await LoadViewerApprovedCommunityIdsAsync(db, viewerUserId, items, ct);
         return PagingHelper.Create(
-            items.Select(d => ToListDto(d, likedIds.Contains(d.Id))).ToList(),
+            items.Select(d => ToListDto(
+                d,
+                likedIds.Contains(d.Id),
+                videoAssets,
+                IsCommunityMember(d, communityMemberIds))).ToList(),
             normalizedPage,
             normalizedPageSize,
             total);
@@ -150,8 +192,60 @@ public class DiscussionService(
             .ToListAsync(ct);
 
         var likedIds = await LoadLikedDiscussionIdsAsync(db, userId, items.Select(d => d.Id), ct);
+        var videoAssets = await LoadVideoAssetsByStorageUrlAsync(items, ct);
+        var communityMemberIds = await LoadViewerApprovedCommunityIdsAsync(db, userId, items, ct);
         return PagingHelper.Create(
-            items.Select(d => ToListDto(d, likedIds.Contains(d.Id))).ToList(),
+            items.Select(d => ToListDto(
+                d,
+                likedIds.Contains(d.Id),
+                videoAssets,
+                IsCommunityMember(d, communityMemberIds))).ToList(),
+            normalizedPage,
+            normalizedPageSize,
+            total);
+    }
+
+    public async Task<PagedResultDto<DiscussionDto>> ListPublicByUserAsync(
+        Guid userId,
+        int page = 1,
+        int pageSize = PagingHelper.DefaultPageSize,
+        Guid? viewerUserId = null,
+        CancellationToken ct = default)
+    {
+        var isPublic = await db.Users
+            .AsNoTracking()
+            .AnyAsync(u => u.Id == userId && u.IsProfilePublic, ct);
+        if (!isPublic)
+            throw new KeyNotFoundException("Profil introuvable.");
+
+        var (normalizedPage, normalizedPageSize) = PagingHelper.Normalize(page, pageSize);
+
+        var query = DiscussionVisibilityFilter.WhereVisibleTo(
+                db.Discussions
+                    .AsNoTracking()
+                    .Include(d => d.User)
+                    .Include(d => d.Category)
+                    .Include(d => d.Community)
+                    .Where(d => d.UserId == userId && d.Visibility == CommunityVisibilities.Public),
+                db,
+                viewerUserId)
+            .OrderByDescending(d => d.CreatedAt);
+
+        var total = await query.CountAsync(ct);
+        var items = await query
+            .Skip((normalizedPage - 1) * normalizedPageSize)
+            .Take(normalizedPageSize)
+            .ToListAsync(ct);
+
+        var likedIds = await LoadLikedDiscussionIdsAsync(db, viewerUserId, items.Select(d => d.Id), ct);
+        var videoAssets = await LoadVideoAssetsByStorageUrlAsync(items, ct);
+        var communityMemberIds = await LoadViewerApprovedCommunityIdsAsync(db, viewerUserId, items, ct);
+        return PagingHelper.Create(
+            items.Select(d => ToListDto(
+                d,
+                likedIds.Contains(d.Id),
+                videoAssets,
+                IsCommunityMember(d, communityMemberIds))).ToList(),
             normalizedPage,
             normalizedPageSize,
             total);
@@ -175,6 +269,8 @@ public class DiscussionService(
         if (d is null)
             return null;
 
+        await participation.EnsureCanViewAsync(d, viewerUserId, ct);
+
         var viewCount = await IncrementViewCountAsync(id, d.ViewCount, ct);
         var isLiked = await IsLikedByUserAsync(db, viewerUserId, id, ct);
 
@@ -190,14 +286,18 @@ public class DiscussionService(
             .Take(normalizedPageSize)
             .ToListAsync(ct);
 
+        var likedReplyIds = await LoadLikedReplyIdsAsync(db, viewerUserId, replies.Select(r => r.Id), ct);
         var thread = PagingHelper.Create(
-            replies.Select(ToReplyDto).ToList(),
+            replies.Select(r => ToReplyDto(r, likedReplyIds.Contains(r.Id))).ToList(),
             normalizedPage,
             normalizedPageSize,
             total);
 
         var images = DiscussionMediaHelper.ParseUrlList(d.ImageUrlsJson);
         var videos = DiscussionMediaHelper.ParseUrlList(d.VideoUrlsJson);
+        var (viewerStatus, canAccess, canParticipate, isCommunityMember, joinPrompt) =
+            await GetViewerAccessAsync(d, viewerUserId, ct);
+        var videoAssets = await LoadVideoAssetsByStorageUrlAsync(videos, ct);
 
         return new DiscussionDetailDto(
             d.Id,
@@ -215,8 +315,39 @@ public class DiscussionService(
             d.IsExternal,
             DiscussionSourceMapper.ToSourceDto(d),
             d.Community is null ? null : CommunitySlugHelper.ToRouteSlug(d.Community.Slug),
-            DiscussionMediaHelper.ToMediaDtos(images, videos));
+            DiscussionMediaHelper.ToMediaDtos(images, videos, videoAssets),
+            d.Visibility,
+            viewerStatus,
+            canAccess,
+            canParticipate,
+            isCommunityMember,
+            joinPrompt);
     }
+
+    public Task RequestJoinAsync(Guid userId, Guid discussionId, CancellationToken ct = default) =>
+        participation.RequestJoinAsync(userId, discussionId, ct);
+
+    public Task ApproveParticipantAsync(
+        Guid actorUserId,
+        Guid discussionId,
+        Guid targetUserId,
+        CancellationToken ct = default) =>
+        participation.ApproveParticipantAsync(actorUserId, discussionId, targetUserId, ct);
+
+    public Task RejectParticipantAsync(
+        Guid actorUserId,
+        Guid discussionId,
+        Guid targetUserId,
+        CancellationToken ct = default) =>
+        participation.RejectParticipantAsync(actorUserId, discussionId, targetUserId, ct);
+
+    public Task<PagedResultDto<DiscussionParticipantDto>> ListPendingParticipantsAsync(
+        Guid actorUserId,
+        Guid discussionId,
+        int page = 1,
+        int pageSize = PagingHelper.DefaultPageSize,
+        CancellationToken ct = default) =>
+        participation.ListPendingParticipantsAsync(actorUserId, discussionId, page, pageSize, ct);
 
     public async Task<DiscussionDetailDto> UpdateAsync(
         Guid userId,
@@ -236,13 +367,11 @@ public class DiscussionService(
         await moderation.EnsureTextAllowedAsync($"{title}\n{body}", ct);
 
         var category = await AssignTopicCategoryAsync($"{title}. {body}", ct);
-        Guid? communityId = discussion.CommunityId;
-        if (request.CommunitySlug is not null)
-        {
-            communityId = string.IsNullOrWhiteSpace(request.CommunitySlug)
-                ? null
-                : await ResolveCommunityIdAsync(request.CommunitySlug, ct);
-        }
+        var communityId = !string.IsNullOrWhiteSpace(request.CommunitySlug)
+            ? await ResolveCommunityIdAsync(request.CommunitySlug, ct)
+            : discussion.CommunityId ?? await ResolveDefaultCommunityIdAsync(userId, ct);
+
+        await communities.EnsureCanPostAsync(communityId, userId, ct);
 
         var images = request.ImageUrls is null
             ? DiscussionMediaHelper.ParseUrlList(discussion.ImageUrlsJson)
@@ -280,10 +409,17 @@ public class DiscussionService(
 
     public async Task<DiscussionDto> CreateAsync(Guid userId, CreateDiscussionRequestDto request, CancellationToken ct = default)
     {
+        var communityId = !string.IsNullOrWhiteSpace(request.CommunitySlug)
+            ? await ResolveCommunityIdAsync(request.CommunitySlug, ct)
+            : await ResolveDefaultCommunityIdAsync(userId, ct);
+        await communities.EnsureCanPostAsync(communityId, userId, ct);
         await moderation.EnsureTextAllowedAsync($"{request.Title}\n{request.Body}", ct);
 
         var category = await AssignTopicCategoryAsync($"{request.Title}. {request.Body}", ct);
-        var communityId = await ResolveCommunityIdAsync(request.CommunitySlug, ct);
+
+        if (!CommunityVisibilityHelper.TryNormalize(request.Visibility, out var visibility))
+            throw new ArgumentException("La visibilité doit être public ou private.");
+
         var images = DiscussionMediaHelper.NormalizeUrls(
             request.ImageUrls, userId, "images", DiscussionMediaHelper.MaxImages, "photos");
         var videos = DiscussionMediaHelper.NormalizeUrls(
@@ -297,20 +433,28 @@ public class DiscussionService(
             CommunityId = communityId,
             Title = request.Title.Trim(),
             Body = request.Body.Trim(),
+            Visibility = visibility,
             ImageUrlsJson = DiscussionMediaHelper.SerializeUrlList(images),
             VideoUrlsJson = DiscussionMediaHelper.SerializeUrlList(videos),
         };
 
         db.Discussions.Add(discussion);
         await db.SaveChangesAsync(ct);
+        await participation.SeedAuthorParticipantAsync(discussion, ct);
 
         var user = await db.Users.AsNoTracking().FirstAsync(u => u.Id == userId, ct);
         discussion.User = user;
         discussion.Category = category;
-        if (communityId is not null)
-            discussion.Community = await db.Communities.AsNoTracking().FirstAsync(c => c.Id == communityId, ct);
+        discussion.Community = await db.Communities.AsNoTracking().FirstAsync(c => c.Id == communityId, ct);
         discussion.Replies = [];
-        return ToListDto(discussion, isLiked: false);
+
+        var communityMemberIds = await LoadViewerApprovedCommunityIdsAsync(db, userId, [discussion], ct);
+        var videoAssets = await LoadVideoAssetsByStorageUrlAsync([discussion], ct);
+        return ToListDto(
+            discussion,
+            isLiked: false,
+            videoAssets,
+            IsCommunityMember(discussion, communityMemberIds));
     }
 
     public async Task<DiscussionDto> AddMediaAsync(
@@ -348,7 +492,7 @@ public class DiscussionService(
         discussion.VideoUrlsJson = DiscussionMediaHelper.SerializeUrlList(videos);
         discussion.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
-        return ToListDto(discussion, isLiked: false);
+        return await ToListDtoAsync(discussion, isLiked: false, ct);
     }
 
     public async Task<DiscussionDto> RemoveMediaAsync(
@@ -389,7 +533,7 @@ public class DiscussionService(
         discussion.VideoUrlsJson = DiscussionMediaHelper.SerializeUrlList(videos);
         discussion.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
-        return ToListDto(discussion, isLiked: false);
+        return await ToListDtoAsync(discussion, isLiked: false, ct);
     }
 
     public async Task<DiscussionReplyDto> AddReplyAsync(
@@ -400,6 +544,8 @@ public class DiscussionService(
     {
         var discussion = await db.Discussions.FirstOrDefaultAsync(d => d.Id == discussionId, ct)
             ?? throw new KeyNotFoundException("Discussion introuvable.");
+
+        await participation.EnsureCanParticipateAsync(discussion, userId, ct);
 
         await moderation.EnsureTextAllowedAsync(request.Body, ct);
 
@@ -515,6 +661,28 @@ public class DiscussionService(
         return liked.ToHashSet();
     }
 
+    internal static async Task<HashSet<Guid>> LoadLikedReplyIdsAsync(
+        KinshoutDbContext db,
+        Guid? viewerUserId,
+        IEnumerable<Guid> replyIds,
+        CancellationToken ct)
+    {
+        if (viewerUserId is null)
+            return [];
+
+        var ids = replyIds.Distinct().ToList();
+        if (ids.Count == 0)
+            return [];
+
+        var liked = await db.LikedReplies
+            .AsNoTracking()
+            .Where(l => l.UserId == viewerUserId.Value && ids.Contains(l.ReplyId))
+            .Select(l => l.ReplyId)
+            .ToListAsync(ct);
+
+        return liked.ToHashSet();
+    }
+
     internal static async Task<bool> IsLikedByUserAsync(
         KinshoutDbContext db,
         Guid? viewerUserId,
@@ -529,7 +697,7 @@ public class DiscussionService(
             .AnyAsync(l => l.UserId == viewerUserId.Value && l.DiscussionId == discussionId, ct);
     }
 
-    private static DiscussionReplyDto ToReplyDto(DiscussionReply reply) =>
+    private static DiscussionReplyDto ToReplyDto(DiscussionReply reply, bool isLiked = false) =>
         new(
             reply.Id,
             reply.UserId,
@@ -539,9 +707,11 @@ public class DiscussionService(
             reply.Body,
             reply.ImageUrl,
             reply.VideoUrl,
-            ToReplyLocationDto(reply));
+            ToReplyLocationDto(reply),
+            reply.LikeCount,
+            isLiked);
 
-    private static DiscussionReplyDto ToReplyDto(DiscussionReply reply, User user) =>
+    private static DiscussionReplyDto ToReplyDto(DiscussionReply reply, User user, bool isLiked = false) =>
         new(
             reply.Id,
             reply.UserId,
@@ -551,7 +721,9 @@ public class DiscussionService(
             reply.Body,
             reply.ImageUrl,
             reply.VideoUrl,
-            ToReplyLocationDto(reply));
+            ToReplyLocationDto(reply),
+            reply.LikeCount,
+            isLiked);
 
     private static DiscussionReplyLocationDto? ToReplyLocationDto(DiscussionReply reply)
     {
@@ -635,7 +807,21 @@ public class DiscussionService(
     private static string Truncate(string value, int maxLength) =>
         value.Length <= maxLength ? value : value[..maxLength];
 
-    internal static DiscussionDto ToListDto(Discussion d, bool isLiked = false)
+    private async Task<DiscussionDto> ToListDtoAsync(
+        Discussion d,
+        bool isLiked,
+        CancellationToken ct)
+    {
+        var videos = DiscussionMediaHelper.ParseUrlList(d.VideoUrlsJson);
+        var videoAssets = await LoadVideoAssetsByStorageUrlAsync(videos, ct);
+        return ToListDto(d, isLiked, videoAssets);
+    }
+
+    internal static DiscussionDto ToListDto(
+        Discussion d,
+        bool isLiked = false,
+        IReadOnlyDictionary<string, VideoAsset>? videoAssetsByStorageUrl = null,
+        bool isCommunityMember = false)
     {
         var images = DiscussionMediaHelper.ParseUrlList(d.ImageUrlsJson);
         var videos = DiscussionMediaHelper.ParseUrlList(d.VideoUrlsJson);
@@ -654,18 +840,101 @@ public class DiscussionService(
             d.IsExternal,
             DiscussionSourceMapper.ToSourceDto(d),
             d.Community is null ? null : CommunitySlugHelper.ToRouteSlug(d.Community.Slug),
-            DiscussionMediaHelper.ToMediaDtos(images, videos));
+            DiscussionMediaHelper.ToMediaDtos(images, videos, videoAssetsByStorageUrl),
+            isCommunityMember);
     }
 
-    private async Task<Guid?> ResolveCommunityIdAsync(string? communitySlug, CancellationToken ct)
-    {
-        if (string.IsNullOrWhiteSpace(communitySlug))
-            return null;
+    internal static bool IsCommunityMember(Discussion discussion, IReadOnlySet<Guid> approvedCommunityIds) =>
+        discussion.CommunityId is Guid communityId && approvedCommunityIds.Contains(communityId);
 
+    internal static async Task<HashSet<Guid>> LoadViewerApprovedCommunityIdsAsync(
+        KinshoutDbContext db,
+        Guid? viewerUserId,
+        IEnumerable<Discussion> discussions,
+        CancellationToken ct)
+    {
+        if (viewerUserId is null)
+            return [];
+
+        var communityIds = discussions
+            .Where(d => d.CommunityId is not null)
+            .Select(d => d.CommunityId!.Value)
+            .Distinct()
+            .ToList();
+        if (communityIds.Count == 0)
+            return [];
+
+        var memberships = await db.CommunityMembers
+            .AsNoTracking()
+            .Where(m => m.UserId == viewerUserId && communityIds.Contains(m.CommunityId))
+            .ToDictionaryAsync(m => m.CommunityId, ct);
+
+        var communities = discussions
+            .Where(d => d.Community is not null)
+            .Select(d => d.Community!)
+            .GroupBy(c => c.Id)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var missingIds = communityIds.Where(id => !communities.ContainsKey(id)).ToList();
+        if (missingIds.Count > 0)
+        {
+            var loaded = await db.Communities
+                .AsNoTracking()
+                .Where(c => missingIds.Contains(c.Id))
+                .ToListAsync(ct);
+            foreach (var community in loaded)
+                communities[community.Id] = community;
+        }
+
+        var approved = new HashSet<Guid>();
+        foreach (var communityId in communityIds)
+        {
+            if (!communities.TryGetValue(communityId, out var community))
+                continue;
+
+            memberships.TryGetValue(communityId, out var membership);
+            if (CommunityAccessHelper.IsApprovedMember(community, membership, viewerUserId))
+                approved.Add(communityId);
+        }
+
+        return approved;
+    }
+
+    private async Task<IReadOnlyDictionary<string, VideoAsset>> LoadVideoAssetsByStorageUrlAsync(
+        IEnumerable<Discussion> discussions,
+        CancellationToken ct)
+    {
+        var storageUrls = discussions
+            .SelectMany(d => DiscussionMediaHelper.ParseUrlList(d.VideoUrlsJson))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return await LoadVideoAssetsByStorageUrlAsync(storageUrls, ct);
+    }
+
+    private async Task<IReadOnlyDictionary<string, VideoAsset>> LoadVideoAssetsByStorageUrlAsync(
+        IReadOnlyList<string> storageUrls,
+        CancellationToken ct)
+    {
+        if (storageUrls.Count == 0)
+            return new Dictionary<string, VideoAsset>(StringComparer.OrdinalIgnoreCase);
+
+        // Register legacy /uploads/videos/... paths so feeds always get preview URLs.
+        return await videos.EnsureAssetsForStorageUrlsAsync(storageUrls, ct);
+    }
+
+    private async Task<Guid> ResolveCommunityIdAsync(string communitySlug, CancellationToken ct)
+    {
         var slug = CommunitySlugHelper.Normalize(communitySlug);
         var community = await db.Communities.AsNoTracking().FirstOrDefaultAsync(c => c.Slug == slug, ct)
             ?? throw new ArgumentException($"Communauté k/{slug} introuvable.");
         return community.Id;
+    }
+
+    private async Task<Guid> ResolveDefaultCommunityIdAsync(Guid userId, CancellationToken ct)
+    {
+        var general = await CommunitySeed.EnsureGeneralCommunityAsync(db, ct);
+        await communities.EnsureJoinedAsync(userId, general.Id, ct);
+        return general.Id;
     }
 
     private async Task DeleteStoredMediaAsync(Discussion discussion, CancellationToken ct)
@@ -687,6 +956,62 @@ public class DiscussionService(
         {
             // Ignore invalid or external URLs.
         }
+    }
+
+    private async Task<(
+        string? ViewerStatus,
+        bool CanAccess,
+        bool CanParticipate,
+        bool IsCommunityMember,
+        DiscussionJoinPromptDto? JoinPrompt)> GetViewerAccessAsync(
+        Discussion discussion,
+        Guid? viewerUserId,
+        CancellationToken ct)
+    {
+        Community? community = null;
+        CommunityMember? membership = null;
+        var isApprovedCommunityMember = false;
+        if (discussion.CommunityId is Guid communityId)
+        {
+            community = discussion.Community
+                ?? await db.Communities.AsNoTracking().FirstAsync(c => c.Id == communityId, ct);
+            if (viewerUserId is not null)
+            {
+                membership = await db.CommunityMembers.AsNoTracking()
+                    .FirstOrDefaultAsync(m => m.CommunityId == communityId && m.UserId == viewerUserId, ct);
+                isApprovedCommunityMember = CommunityAccessHelper.IsApprovedMember(community, membership, viewerUserId);
+            }
+        }
+
+        var participant = viewerUserId is null
+            ? null
+            : await db.DiscussionParticipants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.DiscussionId == discussion.Id && p.UserId == viewerUserId, ct);
+
+        var communityRequired = community is not null
+            && !CommunityAccessHelper.CanViewDiscussions(community, membership, viewerUserId);
+        var canAccess = DiscussionAccessHelper.CanView(
+            discussion, participant, viewerUserId, isApprovedCommunityMember);
+        var canParticipate = !communityRequired
+            && viewerUserId is Guid userId
+            && DiscussionAccessHelper.CanParticipate(discussion, participant, userId);
+
+        string? viewerStatus = participant?.Status;
+        if (DiscussionAccessHelper.IsAuthor(discussion, viewerUserId))
+            viewerStatus = CommunityMemberStatuses.Approved;
+
+        var joinPrompt = canParticipate
+            ? null
+            : DiscussionJoinPrompt.Build(
+                discussion,
+                community,
+                viewerUserId,
+                communityRequired,
+                communityRequired ? membership?.Status ?? participant?.Status : participant?.Status,
+                toRead: false);
+
+        return (viewerStatus, canAccess, canParticipate, isApprovedCommunityMember, joinPrompt);
     }
 
     private async Task<Category> AssignTopicCategoryAsync(string text, CancellationToken ct)

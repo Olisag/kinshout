@@ -253,6 +253,9 @@ public class DiscussionReplyAttachmentTests
             Mock.Of<IOpenAiService>(),
             moderation.Object,
             Mock.Of<IUploadStorage>(),
+            TestDbFactory.CreatePermissiveCommunityService(),
+            TestDbFactory.CreatePermissiveDiscussionParticipationService(),
+            TestDbFactory.CreatePermissiveVideoService(),
             TestDbFactory.CreateMemoryCache());
     }
 }
