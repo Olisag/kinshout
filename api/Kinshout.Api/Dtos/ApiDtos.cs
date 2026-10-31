@@ -30,7 +30,8 @@ public record PublicUserProfileDto(
     string DisplayName,
     string? AvatarUrl,
     string MemberSince,
-    int PublishedAdvertCount
+    int PublishedAdvertCount,
+    bool IsBlockedByMe = false
 );
 
 public record ProfileVisibilityDto(bool IsPublic);
@@ -243,7 +244,9 @@ public record ImportExternalDiscussionDto(
     string? OriginalAuthor = null,
     int? EngagementScore = null,
     string Status = "active",
-    DateTime? PublishedAt = null);
+    DateTime? PublishedAt = null,
+    IReadOnlyList<string>? ImageUrls = null,
+    IReadOnlyList<string>? VideoUrls = null);
 
 public record ImportExternalDiscussionsRequestDto(IReadOnlyList<ImportExternalDiscussionDto> Discussions);
 
