@@ -79,6 +79,8 @@ builder.Services.AddScoped<IDiscussionService, DiscussionService>();
 builder.Services.AddScoped<ICommunityService, CommunityService>();
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 builder.Services.AddScoped<ICommunityJoinNotifier, CommunityJoinNotifier>();
+builder.Services.AddScoped<ICommunityReportNotifier, CommunityReportNotifier>();
+builder.Services.AddScoped<IUserBlockService, UserBlockService>();
 builder.Services.AddScoped<IDiscussionParticipationService, DiscussionParticipationService>();
 builder.Services.AddScoped<IDiscussionJoinNotifier, DiscussionJoinNotifier>();
 builder.Services.AddHttpContextAccessor();
